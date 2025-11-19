@@ -40,6 +40,7 @@ export interface Player extends Entity {
   lives: number;
   activePowerUp: EntityType | null;
   powerUpTimer: number;
+  multiplier: number;
 }
 
 export interface Particle {
@@ -63,4 +64,5 @@ export interface GameState {
   lastShotTime: number;
   level: number;
   distanceSinceLastFuel: number;
+  multiplierDistance: number;
 }

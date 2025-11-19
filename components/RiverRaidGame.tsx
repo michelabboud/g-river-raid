@@ -15,6 +15,7 @@ const RIVER_SEGMENT_HEIGHT = 20;
 const SPAWN_DISTANCE = 700;
 const FUEL_GUARANTEE_DISTANCE = 800; // Ensure fuel appears at least this often
 const POWERUP_DURATION = 10; // Seconds
+const MULTIPLIER_INCREMENT_DISTANCE = 1000; // Distance to travel to increase multiplier
 
 // --- SPRITE DEFINITIONS (Improved Pixel Art) ---
 const SPRITES: Record<string, number[][]> = {
@@ -286,6 +287,10 @@ class SoundEngine {
     this.playTone(600, 'sine', 0.1, 0.1, 200); 
     setTimeout(() => this.playTone(800, 'sine', 0.1, 0.1, 200), 100);
   }
+  multiplierUp() {
+    this.playTone(400, 'square', 0.1, 0.05, 200);
+    setTimeout(() => this.playTone(600, 'square', 0.1, 0.05, 200), 100);
+  }
 }
 
 interface Props {
@@ -317,7 +322,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       lives: 3,
       frame: 0,
       activePowerUp: null,
-      powerUpTimer: 0
+      powerUpTimer: 0,
+      multiplier: 1,
     },
     entities: [],
     particles: [],
@@ -327,10 +333,11 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     isPaused: false,
     lastShotTime: 0,
     level: 1,
-    distanceSinceLastFuel: 0
+    distanceSinceLastFuel: 0,
+    multiplierDistance: 0,
   });
 
-  const [hudState, setHudState] = useState({ score: 0, fuel: 100, lives: 3, gameOver: false, level: 1 });
+  const [hudState, setHudState] = useState({ score: 0, fuel: 100, lives: 3, gameOver: false, level: 1, multiplier: 1 });
 
   useEffect(() => {
       soundRef.current = new SoundEngine();
@@ -530,6 +537,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     // Advance World
     state.cameraY += state.player.speed * dt;
     state.distanceSinceLastFuel += state.player.speed * dt;
+    
+    // Multiplier Progress
+    state.multiplierDistance += state.player.speed * dt;
+    if (state.multiplierDistance >= MULTIPLIER_INCREMENT_DISTANCE) {
+        state.player.multiplier = Math.min(10, state.player.multiplier + 1); // Cap at 10x
+        state.multiplierDistance = 0;
+        soundRef.current?.multiplierUp();
+    }
+
     state.player.x += state.player.vx * dt;
     state.player.fuel -= FUEL_CONSUMPTION * dt;
 
@@ -604,6 +620,13 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             if (ent.type === EntityType.FUEL) {
                 state.player.fuel = Math.min(100, state.player.fuel + 40 * dt);
                 if (Math.random() > 0.8) soundRef.current?.refuel();
+                
+                // Reset Multiplier on Fuel Pickup
+                if (state.player.multiplier > 1) {
+                    state.player.multiplier = 1;
+                    state.multiplierDistance = 0;
+                }
+
             } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD].includes(ent.type)) {
                 // Pickup Powerup
                 ent.active = false;
@@ -644,7 +667,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                      if (target.type === EntityType.BRIDGE) {
                          target.active = false;
                          createExplosion(target.x, targetScreenY, '#fff');
-                         state.player.score += 500;
+                         state.player.score += 500 * state.player.multiplier;
                          state.level++;
                          // Flash screen?
                      } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD].includes(target.type)) {
@@ -652,7 +675,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                      } else {
                          target.active = false;
                          createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
-                         state.player.score += (target.scoreValue || 50);
+                         state.player.score += (target.scoreValue || 50) * state.player.multiplier;
                      }
                  }
              });
@@ -679,7 +702,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             fuel: state.player.fuel, 
             lives: state.player.lives, 
             gameOver: state.isGameOver,
-            level: state.level
+            level: state.level,
+            multiplier: state.player.multiplier
         });
     }
   };
@@ -689,8 +713,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       createExplosion(state.player.x, state.player.y, '#fbbf24');
       state.player.isDead = true;
       state.player.lives--;
-      state.player.activePowerUp = null; // Lose powerup on death
+      state.player.activePowerUp = null;
       
+      // Reset Multiplier on Death
+      state.player.multiplier = 1;
+      state.multiplierDistance = 0;
+
       setTimeout(() => {
           if (state.player.lives > 0) {
               // Reset Position
@@ -876,6 +904,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
               <div>LIVES {hudState.lives}</div>
           </div>
           
+          {/* MULTIPLIER DISPLAY */}
+          <div className="absolute top-8 w-full text-center pointer-events-none">
+             {hudState.multiplier > 1 && (
+               <div className="text-yellow-400 font-black text-lg tracking-widest animate-pulse drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
+                 MULTIPLIER X{hudState.multiplier}
+               </div>
+             )}
+          </div>
+
           {/* FUEL GAUGE */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 h-6 bg-zinc-900 border-2 border-zinc-600 rounded">
               <div 
