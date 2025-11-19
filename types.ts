@@ -95,8 +95,10 @@ export interface Particle {
   vx: number;
   vy: number;
   life: number;
+  maxLife: number;
   color: string;
   size: number;
+  style: 'pixel' | 'smoke' | 'shockwave';
 }
 
 export interface GameState {

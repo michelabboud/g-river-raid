@@ -11,8 +11,8 @@ const MAX_SCROLL_SPEED = 250;
 const MIN_SCROLL_SPEED = 60;
 const BASE_BULLET_SPEED = 600;
 const UPGRADED_BULLET_SPEED = 900;
-const BOSS_BULLET_SPEED = 100; // Slower boss bullets
-const FUEL_CONSUMPTION = 4.0; // Reduced by ~25%
+const BOSS_BULLET_SPEED = 100; 
+const FUEL_CONSUMPTION = 4.0; 
 const FUEL_REGEN_RATE = 3.0;
 const RIVER_SEGMENT_HEIGHT = 20;
 const SPAWN_DISTANCE = 700;
@@ -481,6 +481,9 @@ class SoundEngine {
   engineOsc: OscillatorNode | null = null;
   engineGain: GainNode | null = null;
   
+  ambienceNode: AudioBufferSourceNode | null = null;
+  ambienceGain: GainNode | null = null;
+  
   bossMusicTimer: number | null = null;
   isBossMusicPlaying: boolean = false;
 
@@ -516,6 +519,63 @@ class SoundEngine {
       this.engineGain.connect(this.gainNode!);
       this.engineOsc.start();
     } catch (e) { console.error("Error starting engine sound", e); }
+  }
+
+  startNatureAmbience() {
+    if (!this.ctx || this.ambienceNode) return;
+    try {
+       const bufferSize = this.ctx.sampleRate * 5; 
+       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+       const data = buffer.getChannelData(0);
+       // Pink noise approximation
+       let b0, b1, b2, b3, b4, b5, b6;
+       b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0;
+       for (let i = 0; i < bufferSize; i++) {
+         const white = Math.random() * 2 - 1;
+         b0 = 0.99886 * b0 + white * 0.0555179;
+         b1 = 0.99332 * b1 + white * 0.0750759;
+         b2 = 0.96900 * b2 + white * 0.1538520;
+         b3 = 0.86650 * b3 + white * 0.3104856;
+         b4 = 0.55000 * b4 + white * 0.5329522;
+         b5 = -0.7616 * b5 - white * 0.0168981;
+         data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+         data[i] *= 0.11; 
+         b6 = white * 0.115926;
+       }
+
+       this.ambienceNode = this.ctx.createBufferSource();
+       this.ambienceNode.buffer = buffer;
+       this.ambienceNode.loop = true;
+
+       const filter = this.ctx.createBiquadFilter();
+       filter.type = 'bandpass';
+       filter.frequency.value = 400;
+       filter.Q.value = 0.5;
+
+       // LFO to modulate wind
+       const lfo = this.ctx.createOscillator();
+       lfo.frequency.value = 0.1;
+       const lfoGain = this.ctx.createGain();
+       lfoGain.gain.value = 300;
+       lfo.connect(lfoGain);
+       lfoGain.connect(filter.frequency);
+       lfo.start();
+
+       this.ambienceGain = this.ctx.createGain();
+       this.ambienceGain.gain.value = 0.05;
+
+       this.ambienceNode.connect(filter);
+       filter.connect(this.ambienceGain);
+       this.ambienceGain.connect(this.gainNode!);
+       this.ambienceNode.start();
+    } catch (e) {}
+  }
+
+  stopNatureAmbience() {
+    if (this.ambienceNode) {
+      try { this.ambienceNode.stop(); this.ambienceNode.disconnect(); } catch(e){}
+      this.ambienceNode = null;
+    }
   }
 
   stopEngineHum() {
@@ -707,6 +767,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           if (soundRef.current?.ctx) {
               soundRef.current.ctx.resume();
               soundRef.current.startEngineHum();
+              soundRef.current.startNatureAmbience();
           }
       };
       window.addEventListener('keydown', resume, { once: true });
@@ -714,6 +775,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       
       return () => {
           soundRef.current?.stopEngineHum();
+          soundRef.current?.stopNatureAmbience();
           soundRef.current?.stopBossMusic();
       };
   }, []);
@@ -754,7 +816,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
            else if (roll > 0.5) type = EntityType.TURRET;
            else type = EntityType.RADAR;
       } else {
-           // Scenery Mix (Expanded)
+           // Scenery Mix
            const s = Math.random();
            if (s < 0.15) type = EntityType.TREE;
            else if (s < 0.25) type = EntityType.PALM;
@@ -777,7 +839,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
       const def = SPAWN_REGISTRY[type]!;
       let x = 0;
-      const hugWater = Math.random() < 0.4; // 40% chance to spawn right at edge
+      const hugWater = Math.random() < 0.4; 
 
       if (side === 'left') {
           const maxX = limitX - def.width; 
@@ -785,7 +847,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           if (maxX < minX) return;
           
           if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE, EntityType.PIER, EntityType.BUNKER].includes(type)) {
-             x = maxX; // Place exactly at limit
+             x = maxX; 
           } else {
              x = minX + Math.random() * (maxX - minX);
           }
@@ -795,7 +857,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           if (maxX < minX) return;
           
           if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE, EntityType.PIER, EntityType.BUNKER].includes(type)) {
-             x = minX; // Place exactly at limit
+             x = minX; 
           } else {
              x = minX + Math.random() * (maxX - minX);
           }
@@ -841,7 +903,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     if (type === EntityType.BRIDGE) {
         state.entities.push({
             id: Math.random(), type: EntityType.BRIDGE,
-            x: CANVAS_WIDTH / 2, y, // Center x, but width covers screen
+            x: CANVAS_WIDTH / 2, y, 
             width: CANVAS_WIDTH, height: 24,
             vx: 0, vy: 0, active: true, frame: 0, scoreValue: 500
         });
@@ -901,28 +963,54 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     spawnBankEntity(y, 'right', bounds.right);
   };
 
-  const createExplosion = (x: number, y: number, color: string) => {
+  const createExplosion = (x: number, y: number, color: string, isBoss: boolean = false) => {
     soundRef.current?.explosion();
     const state = gameState.current;
-    for (let i = 0; i < 6; i++) {
+    const countMultiplier = isBoss ? 5 : 1;
+    
+    // 1. Fast Debris (Pixels)
+    for (let i = 0; i < 12 * countMultiplier; i++) {
+        const angle = Math.random() * 6.28;
+        const speed = (80 + Math.random() * 200) * (isBoss ? 1.5 : 1);
         state.particles.push({
-            x, y, vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120,
-            life: 0.1 + Math.random() * 0.2, color: '#ffffff', size: 8 + Math.random() * 12
+            x, y, 
+            vx: Math.cos(angle) * speed, 
+            vy: Math.sin(angle) * speed,
+            life: 0.3 + Math.random() * 0.4, 
+            maxLife: 0.7,
+            color: Math.random() > 0.5 ? '#f59e0b' : color, 
+            size: 2 + Math.random() * 4,
+            style: 'pixel'
         });
     }
-    for (let i = 0; i < 16; i++) {
-         const angle = Math.random() * 6.28;
-         const speed = 80 + Math.random() * 180;
-         state.particles.push({
-            x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            life: 0.3 + Math.random() * 0.4, color: Math.random() > 0.5 ? '#f59e0b' : '#ef4444', size: 2 + Math.random() * 4
-         });
+
+    // 2. Expanding Smoke
+    for (let i = 0; i < 6 * countMultiplier; i++) {
+        state.particles.push({
+            x: x + (Math.random() - 0.5) * 20, 
+            y: y + (Math.random() - 0.5) * 20, 
+            vx: (Math.random() - 0.5) * 40, 
+            vy: (Math.random() - 0.5) * 40,
+            life: 0.5 + Math.random() * 0.5, 
+            maxLife: 1.0,
+            color: '#ffffff', 
+            size: 8 + Math.random() * 12 * (isBoss ? 2 : 1),
+            style: 'smoke'
+        });
     }
-    for (let i = 0; i < 10; i++) {
-         state.particles.push({
-            x, y, vx: (Math.random() - 0.5) * 250, vy: (Math.random() - 0.5) * 250,
-            life: 0.5 + Math.random() * 0.5, color: color, size: 3 + Math.random() * 4
-         });
+
+    // 3. Shockwave Ring
+    state.particles.push({
+        x, y, vx: 0, vy: 0,
+        life: 0.4, maxLife: 0.4,
+        color: '#ffffff', size: 10, style: 'shockwave'
+    });
+    
+    if (isBoss) {
+         setTimeout(() => soundRef.current?.explosion(), 200);
+         setTimeout(() => soundRef.current?.explosion(), 400);
+         // Extra shockwaves for Boss
+         state.particles.push({ x, y, vx: 0, vy: 0, life: 0.6, maxLife: 0.6, color: '#fbbf24', size: 5, style: 'shockwave' });
     }
   };
 
@@ -931,6 +1019,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
   const update = (dt: number) => {
     if (state.isGameOver) {
         soundRef.current?.stopEngineHum();
+        soundRef.current?.stopNatureAmbience();
         soundRef.current?.stopBossMusic();
         return;
     }
@@ -980,7 +1069,10 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     state.player.x += state.player.vx * dt;
 
     // --- FUEL LOGIC ---
-    state.player.fuel -= FUEL_CONSUMPTION * dt;
+    // Only drain fuel if not fighting a boss
+    if (!state.bossActive) {
+        state.player.fuel -= FUEL_CONSUMPTION * dt;
+    }
 
     // --- SHOOTING ---
     const fireDelay = state.player.upgrades.rapid ? 150 : 300;
@@ -1145,13 +1237,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                          state.particles.push({
                              x: target.x + (Math.random()-0.5)*20, 
                              y: target.y + (Math.random()-0.5)*20,
-                             vx: 0, vy: 0, life: 0.1, size: 4, color: '#fff'
+                             vx: 0, vy: 0, life: 0.1, maxLife: 0.1, size: 4, color: '#fff', style: 'pixel'
                          });
 
                          if ((target.hp || 0) <= 0) {
                              target.active = false;
-                             createExplosion(target.x, targetScreenY, '#fff');
-                             for(let k=0;k<5;k++) setTimeout(() => createExplosion(target.x + (Math.random()-0.5)*40, targetScreenY + (Math.random()-0.5)*40, '#f00'), k*100);
+                             createExplosion(target.x, targetScreenY, '#fff', true);
                              
                              state.player.score += (target.scoreValue || 2000) * state.player.multiplier;
                              state.bossActive = false;
@@ -1189,8 +1280,16 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     });
 
     state.particles.forEach(p => {
-        p.x += p.vx * dt;
-        p.y += (p.vy + state.player.speed) * dt;
+        if (p.style === 'shockwave') {
+            p.size += 120 * dt; 
+        } else if (p.style === 'smoke') {
+            p.x += p.vx * dt;
+            p.y += (p.vy + state.player.speed) * dt;
+            p.size += 10 * dt;
+        } else {
+            p.x += p.vx * dt;
+            p.y += (p.vy + state.player.speed) * dt;
+        }
         p.life -= dt;
     });
     state.particles = state.particles.filter(p => p.life > 0);
@@ -1242,6 +1341,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
               state.player.vx = 0;
               state.entities = state.entities.filter(e => e.type !== EntityType.BOSS_BULLET);
               soundRef.current?.startEngineHum();
+              soundRef.current?.startNatureAmbience();
           } else {
               state.isGameOver = true;
               setHudState(s => ({...s, gameOver: true}));
@@ -1320,7 +1420,14 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
               ctx.fillRect(ent.x - 3, screenY - 3, 6, 6);
           } else if (ent.type === EntityType.BOSS) {
              const bossCfg = BOSS_CONFIGS[ent.bossId || 0];
+             // Pulsing boss effect
+             const pulse = 1 + Math.sin(Date.now() * 0.01) * 0.1;
+             ctx.save();
+             ctx.translate(ent.x, screenY);
+             ctx.scale(pulse, pulse);
+             ctx.translate(-ent.x, -screenY);
              drawSprite(ctx, bossCfg.sprite, ent.x, screenY, 4, bossCfg.color);
+             ctx.restore();
           } else {
               const def = SPAWN_REGISTRY[ent.type] || { color: '#fff' };
               const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER || ent.type === EntityType.FIGHTER;
@@ -1356,10 +1463,25 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       }
 
       state.particles.forEach(p => {
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.life;
-          const s = p.size || 4; 
-          ctx.fillRect(p.x - s/2, p.y - s/2, s, s);
+          if (p.style === 'shockwave') {
+             ctx.beginPath();
+             ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+             ctx.strokeStyle = p.color;
+             ctx.lineWidth = 2;
+             ctx.globalAlpha = p.life / p.maxLife;
+             ctx.stroke();
+          } else if (p.style === 'smoke') {
+             ctx.beginPath();
+             ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+             ctx.fillStyle = `rgba(255,255,255,0.3)`;
+             ctx.globalAlpha = p.life / p.maxLife;
+             ctx.fill();
+          } else {
+              ctx.fillStyle = p.color;
+              ctx.globalAlpha = p.life / p.maxLife;
+              const s = p.size || 4; 
+              ctx.fillRect(p.x - s/2, p.y - s/2, s, s);
+          }
           ctx.globalAlpha = 1;
       });
   };
@@ -1460,12 +1582,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           </div>
 
           {hudState.gameOver && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center space-y-4 animate-fade-in">
-                  <h2 className="text-4xl font-black text-red-500 tracking-widest">GAME OVER</h2>
-                  <div className="text-xl text-white">FINAL SCORE: {hudState.score}</div>
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center space-y-4 animate-fade-in z-50">
+                  <h2 className="text-5xl font-black text-red-600 tracking-widest animate-bounce drop-shadow-[2px_2px_0_#fff]">GAME OVER</h2>
+                  <div className="text-2xl text-white font-mono animate-pulse">FINAL SCORE: {hudState.score}</div>
                   <button 
                     onClick={onExit}
-                    className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded shadow-lg"
+                    className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl uppercase tracking-wide rounded shadow-[0_4px_0_#a16207] active:translate-y-1 active:shadow-none transition-all"
                   >
                       RETURN TO BASE
                   </button>
