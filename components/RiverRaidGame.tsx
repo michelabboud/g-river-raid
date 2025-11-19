@@ -605,7 +605,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   const [hudState, setHudState] = useState({ 
     score: 0, fuel: 100, lives: 3, gameOver: false, level: 1, multiplier: 1,
-    bossName: '', bossHp: 0, bossMaxHp: 0
+    bossName: '', bossHp: 0, bossMaxHp: 0, isPaused: false
   });
 
   useEffect(() => {
@@ -1088,7 +1088,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
              bossData = { bossName: cfg.name, bossHp: b.hp || 0, bossMaxHp: b.maxHp || 1 };
         }
 
-        setHudState({ 
+        setHudState(prev => ({ 
+            ...prev,
             score: state.player.score, 
             fuel: state.player.fuel, 
             lives: state.player.lives, 
@@ -1096,7 +1097,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             level: state.level,
             multiplier: state.player.multiplier,
             ...bossData
-        });
+        }));
     }
   };
 
@@ -1256,15 +1257,30 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
   };
 
   useEffect(() => {
-      const onKey = (e: KeyboardEvent, v: boolean) => keys.current[e.key] = v;
-      const down = (e: KeyboardEvent) => onKey(e, true);
-      const up = (e: KeyboardEvent) => onKey(e, false);
-      window.addEventListener('keydown', down);
-      window.addEventListener('keyup', up);
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key.toLowerCase() === 'p') {
+              const isPaused = !gameState.current.isPaused;
+              gameState.current.isPaused = isPaused;
+              setHudState(prev => ({ ...prev, isPaused }));
+              
+              // Suspend audio context to pause all sound effects
+              if (soundRef.current?.ctx) {
+                  if (isPaused) soundRef.current.ctx.suspend();
+                  else soundRef.current.ctx.resume();
+              }
+          }
+          keys.current[e.key] = true;
+      };
+      const handleKeyUp = (e: KeyboardEvent) => {
+          keys.current[e.key] = false;
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
       requestRef.current = requestAnimationFrame(loop);
       return () => {
-          window.removeEventListener('keydown', down);
-          window.removeEventListener('keyup', up);
+          window.removeEventListener('keydown', handleKeyDown);
+          window.removeEventListener('keyup', handleKeyUp);
           cancelAnimationFrame(requestRef.current);
       };
   }, []);
@@ -1303,6 +1319,14 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                </div>
              )}
           </div>
+          
+          {/* PAUSE OVERLAY */}
+          {hudState.isPaused && (
+              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-50 backdrop-blur-sm">
+                  <h2 className="text-6xl font-black text-white tracking-widest drop-shadow-[4px_4px_0_rgba(0,0,0,1)] animate-pulse">PAUSED</h2>
+                  <p className="text-white mt-4 font-mono text-sm blink">PRESS 'P' TO RESUME</p>
+              </div>
+          )}
 
           {/* FUEL GAUGE */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 h-6 bg-zinc-900 border-2 border-zinc-600 rounded">
