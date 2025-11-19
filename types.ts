@@ -17,7 +17,10 @@ export enum EntityType {
   BOAT = 'BOAT',
   ITEM_SPREAD = 'ITEM_SPREAD',
   ITEM_RAPID = 'ITEM_RAPID',
-  ITEM_SHIELD = 'ITEM_SHIELD'
+  ITEM_SHIELD = 'ITEM_SHIELD',
+  ITEM_REGEN = 'ITEM_REGEN',
+  BOSS = 'BOSS',
+  BOSS_BULLET = 'BOSS_BULLET'
 }
 
 export interface Entity {
@@ -32,17 +35,30 @@ export interface Entity {
   active: boolean;
   frame: number; // For animation
   scoreValue?: number;
+  hp?: number;
+  maxHp?: number;
+  bossId?: number; // 0-9 for the 10 bosses
 }
 
-export interface Player extends Entity {
+export interface Player {
+  id: number;
+  type: EntityType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  vx: number;
+  vy: number;
   fuel: number;
   speed: number; // vertical speed relative to map scroll
+  active: boolean;
   isDead: boolean;
   score: number;
   lives: number;
   activePowerUp: EntityType | null;
   powerUpTimer: number;
   multiplier: number;
+  frame: number;
 }
 
 export interface Particle {
@@ -66,5 +82,7 @@ export interface GameState {
   lastShotTime: number;
   level: number;
   distanceSinceLastFuel: number;
+  distanceInLevel: number;
   multiplierDistance: number;
+  bossActive: boolean;
 }
