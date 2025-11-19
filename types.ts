@@ -12,7 +12,10 @@ export enum EntityType {
   TANK = 'TANK',
   HOUSE = 'HOUSE',
   TREE = 'TREE',
-  ROCK = 'ROCK'
+  ROCK = 'ROCK',
+  ITEM_SPREAD = 'ITEM_SPREAD',
+  ITEM_RAPID = 'ITEM_RAPID',
+  ITEM_SHIELD = 'ITEM_SHIELD'
 }
 
 export interface Entity {
@@ -35,6 +38,8 @@ export interface Player extends Entity {
   isDead: boolean;
   score: number;
   lives: number;
+  activePowerUp: EntityType | null;
+  powerUpTimer: number;
 }
 
 export interface Particle {
@@ -44,6 +49,7 @@ export interface Particle {
   vy: number;
   life: number;
   color: string;
+  size: number;
 }
 
 export interface GameState {

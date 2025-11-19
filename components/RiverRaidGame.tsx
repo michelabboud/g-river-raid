@@ -14,6 +14,7 @@ const FUEL_CONSUMPTION = 5.5;
 const RIVER_SEGMENT_HEIGHT = 20;
 const SPAWN_DISTANCE = 700;
 const FUEL_GUARANTEE_DISTANCE = 800; // Ensure fuel appears at least this often
+const POWERUP_DURATION = 10; // Seconds
 
 // --- SPRITE DEFINITIONS (Improved Pixel Art) ---
 const SPRITES: Record<string, number[][]> = {
@@ -94,6 +95,29 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1,1],
     [0,1,1,1,1,1],
     [0,0,1,1,1,0]
+  ],
+  ITEM_SPREAD: [
+    [1,0,0,0,1],
+    [0,1,0,1,0],
+    [0,0,1,0,0],
+    [0,1,0,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1]
+  ],
+  ITEM_RAPID: [
+    [0,0,1,1,0],
+    [0,1,1,0,0],
+    [0,0,1,0,0],
+    [0,1,1,0,0],
+    [0,1,1,1,1],
+    [0,0,0,0,1]
+  ],
+  ITEM_SHIELD: [
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,1,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0]
   ]
 };
 
@@ -113,11 +137,15 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.SHIP]: { width: 24, height: 14, score: 60, color: '#ef4444' },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
-  [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, // Pinkish
+  [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, 
   [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
   [EntityType.HOUSE]: { width: 20, height: 16, score: 0, color: '#eab308', ground: true },
   [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
   [EntityType.ROCK]: { width: 20, height: 16, score: 0, color: '#525252', obstacle: true },
+  // Powerups
+  [EntityType.ITEM_SPREAD]: { width: 16, height: 16, score: 100, color: '#fbbf24' },
+  [EntityType.ITEM_RAPID]: { width: 16, height: 16, score: 100, color: '#f97316' },
+  [EntityType.ITEM_SHIELD]: { width: 16, height: 16, score: 100, color: '#22d3ee' },
 };
 
 interface LevelConfig {
@@ -135,7 +163,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
       [EntityType.SHIP]: 40, 
       [EntityType.FUEL]: 15,
       [EntityType.HOUSE]: 10,
-      [EntityType.TREE]: 10
+      [EntityType.TREE]: 10,
+      [EntityType.ITEM_RAPID]: 1,
     }
   },
   { // Level 2: Sunset - More air, introduce Tanks
@@ -147,7 +176,9 @@ const LEVEL_CONFIGS: LevelConfig[] = [
       [EntityType.SHIP]: 20, 
       [EntityType.TANK]: 15,
       [EntityType.FUEL]: 15,
-      [EntityType.ROCK]: 10
+      [EntityType.ROCK]: 10,
+      [EntityType.ITEM_SPREAD]: 2,
+      [EntityType.ITEM_SHIELD]: 1,
     }
   },
   { // Level 3: Night - Mines and Jets
@@ -158,7 +189,9 @@ const LEVEL_CONFIGS: LevelConfig[] = [
       [EntityType.MINE]: 25, 
       [EntityType.TANK]: 15,
       [EntityType.FUEL]: 15,
-      [EntityType.ROCK]: 20
+      [EntityType.ROCK]: 20,
+      [EntityType.ITEM_RAPID]: 2,
+      [EntityType.ITEM_SHIELD]: 2,
     }
   },
   { // Level 4+: Alien/Toxic - Chaos
@@ -169,7 +202,9 @@ const LEVEL_CONFIGS: LevelConfig[] = [
       [EntityType.MINE]: 30, 
       [EntityType.HELICOPTER]: 20, 
       [EntityType.FUEL]: 15,
-      [EntityType.ROCK]: 20
+      [EntityType.ROCK]: 20,
+      [EntityType.ITEM_SPREAD]: 3,
+      [EntityType.ITEM_RAPID]: 3,
     }
   }
 ];
@@ -247,8 +282,9 @@ class SoundEngine {
   explosion() { this.playNoise(0.4, 0.4); }
   refuel() { this.playTone(1200, 'sine', 0.15, 0.05); } // Ding ding
   lowFuel() { this.playTone(150, 'sawtooth', 0.2, 0.1); }
-  move() { 
-     // Subtle engine hum? Maybe too annoying to loop.
+  powerUp() { 
+    this.playTone(600, 'sine', 0.1, 0.1, 200); 
+    setTimeout(() => this.playTone(800, 'sine', 0.1, 0.1, 200), 100);
   }
 }
 
@@ -279,7 +315,9 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       isDead: false,
       score: 0,
       lives: 3,
-      frame: 0
+      frame: 0,
+      activePowerUp: null,
+      powerUpTimer: 0
     },
     entities: [],
     particles: [],
@@ -393,6 +431,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
         if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
         if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
+        // Powerups are stationary or slow drift? Let's keep them stationary like fuel for now
     }
 
     state.entities.push({
@@ -409,14 +448,43 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   const createExplosion = (x: number, y: number, color: string) => {
     soundRef.current?.explosion();
-    for (let i = 0; i < 12; i++) {
-      state.particles.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 150,
-        vy: (Math.random() - 0.5) * 150,
-        life: 0.5 + Math.random() * 0.3,
-        color
-      });
+    
+    // 1. Shockwave/Flash (Fast expanding white circles)
+    for (let i = 0; i < 6; i++) {
+        state.particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 120,
+            vy: (Math.random() - 0.5) * 120,
+            life: 0.1 + Math.random() * 0.2,
+            color: '#ffffff',
+            size: 8 + Math.random() * 12
+        });
+    }
+
+    // 2. High energy sparks (Yellow/Red)
+    for (let i = 0; i < 16; i++) {
+         const angle = Math.random() * 6.28;
+         const speed = 80 + Math.random() * 180;
+         state.particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.3 + Math.random() * 0.4,
+            color: Math.random() > 0.5 ? '#f59e0b' : '#ef4444',
+            size: 2 + Math.random() * 4
+         });
+    }
+
+    // 3. Debris (Entity color)
+    for (let i = 0; i < 10; i++) {
+         state.particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 250,
+            vy: (Math.random() - 0.5) * 250,
+            life: 0.5 + Math.random() * 0.5,
+            color: color,
+            size: 3 + Math.random() * 4
+         });
     }
   };
 
@@ -424,6 +492,14 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   const update = (dt: number) => {
     if (state.isGameOver || state.isPaused || state.player.isDead) return;
+
+    // --- POWERUP TIMER ---
+    if (state.player.activePowerUp) {
+        state.player.powerUpTimer -= dt;
+        if (state.player.powerUpTimer <= 0) {
+            state.player.activePowerUp = null;
+        }
+    }
 
     // --- CONTROLS ---
     // Left/Right
@@ -458,15 +534,28 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     state.player.fuel -= FUEL_CONSUMPTION * dt;
 
     // Shooting
-    if (keys.current[' '] && Date.now() - state.lastShotTime > 250) {
+    const fireDelay = state.player.activePowerUp === EntityType.ITEM_RAPID ? 100 : 250;
+    
+    if (keys.current[' '] && Date.now() - state.lastShotTime > fireDelay) {
         state.lastShotTime = Date.now();
         soundRef.current?.shoot();
-        state.entities.push({
-            id: Math.random(), type: EntityType.BULLET,
-            x: state.player.x, y: state.cameraY + (CANVAS_HEIGHT - state.player.y) - 10,
-            width: 4, height: 8, vx: 0, vy: BULLET_SPEED + state.player.speed,
-            active: true, frame: 0
-        });
+        
+        const spawnBullet = (vxOffset: number) => {
+            state.entities.push({
+                id: Math.random(), type: EntityType.BULLET,
+                x: state.player.x, y: state.cameraY + (CANVAS_HEIGHT - state.player.y) - 10,
+                width: 4, height: 8, vx: vxOffset, vy: BULLET_SPEED + state.player.speed,
+                active: true, frame: 0
+            });
+        };
+
+        if (state.player.activePowerUp === EntityType.ITEM_SPREAD) {
+            spawnBullet(0);
+            spawnBullet(-150);
+            spawnBullet(150);
+        } else {
+            spawnBullet(0);
+        }
     }
 
     // --- COLLISIONS & LOGIC ---
@@ -488,8 +577,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         if (!ent.active) return;
 
         // Movement
-        if (ent.type === EntityType.BULLET) ent.y += ent.vy * dt;
-        else ent.x += ent.vx * dt;
+        if (ent.type === EntityType.BULLET) {
+             ent.y += ent.vy * dt;
+             ent.x += ent.vx * dt;
+        } else {
+             ent.x += ent.vx * dt;
+        }
 
         // Screen Wrapping (Reflected) for simple enemies
         if (ent.type === EntityType.HELICOPTER || ent.type === EntityType.SHIP) {
@@ -511,9 +604,22 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             if (ent.type === EntityType.FUEL) {
                 state.player.fuel = Math.min(100, state.player.fuel + 40 * dt);
                 if (Math.random() > 0.8) soundRef.current?.refuel();
+            } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD].includes(ent.type)) {
+                // Pickup Powerup
+                ent.active = false;
+                state.player.activePowerUp = ent.type;
+                state.player.powerUpTimer = POWERUP_DURATION;
+                soundRef.current?.powerUp();
             } else {
                 // Crash
-                die();
+                if (state.player.activePowerUp === EntityType.ITEM_SHIELD) {
+                    // Shield destroys enemy but saves player
+                    ent.active = false;
+                    createExplosion(ent.x, entScreenY, SPAWN_REGISTRY[ent.type]?.color || '#fff');
+                    soundRef.current?.explosion();
+                } else {
+                    die();
+                }
             }
         }
 
@@ -531,7 +637,6 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                  if (target.type === EntityType.ROCK || target.type === EntityType.TREE || target.type === EntityType.HOUSE) return;
 
                  const targetScreenY = CANVAS_HEIGHT - (target.y - state.cameraY);
-                 const bulletScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
                  
                  if (Math.abs(ent.x - target.x) < target.width/2 + 4 && Math.abs(ent.y - target.y) < target.height/2 + 4) {
                      ent.active = false; // Bullet dies
@@ -542,6 +647,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                          state.player.score += 500;
                          state.level++;
                          // Flash screen?
+                     } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD].includes(target.type)) {
+                         // Don't destroy items with bullets!
                      } else {
                          target.active = false;
                          createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
@@ -555,7 +662,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     // 4. Particles
     state.particles.forEach(p => {
         p.x += p.vx * dt;
-        p.y += p.vy * dt;
+        // Move particles down with the scroll speed to simulate them being grounded in the world
+        p.y += (p.vy + state.player.speed) * dt;
         p.life -= dt;
     });
     state.particles = state.particles.filter(p => p.life > 0);
@@ -581,6 +689,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       createExplosion(state.player.x, state.player.y, '#fbbf24');
       state.player.isDead = true;
       state.player.lives--;
+      state.player.activePowerUp = null; // Lose powerup on death
       
       setTimeout(() => {
           if (state.player.lives > 0) {
@@ -696,6 +805,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
       // 4. Player
       if (!state.player.isDead) {
+          // Active Shield Effect
+          if (state.player.activePowerUp === EntityType.ITEM_SHIELD) {
+             ctx.beginPath();
+             ctx.arc(state.player.x, state.player.y, 25, 0, Math.PI * 2);
+             ctx.strokeStyle = `rgba(34, 211, 238, ${0.5 + Math.sin(Date.now() * 0.01) * 0.3})`; // Cyan pulsing
+             ctx.lineWidth = 3;
+             ctx.stroke();
+          }
+
           // Shadow
           drawSprite(ctx, 'PLAYER', state.player.x + 8, state.player.y + 8, 2.5, 'rgba(0,0,0,0.4)');
           // Jet
@@ -709,7 +827,9 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       state.particles.forEach(p => {
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.life;
-          ctx.fillRect(p.x, p.y, 4, 4);
+          // Use varying size
+          const s = p.size || 4; 
+          ctx.fillRect(p.x - s/2, p.y - s/2, s, s);
           ctx.globalAlpha = 1;
       });
   };
