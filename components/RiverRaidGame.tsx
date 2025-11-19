@@ -91,6 +91,27 @@ const SPRITES: Record<string, number[][]> = {
     [0,1,1,1,0],
     [0,0,1,0,0]
   ],
+  BASE: [
+    [0,0,1,1,0,0],
+    [0,1,1,1,1,0],
+    [1,1,1,1,1,1],
+    [1,0,1,1,0,1],
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1]
+  ],
+  STABLE: [
+    [0,0,0,1,1,0,0,0],
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1],
+    [1,0,1,0,0,1,0,1]
+  ],
+  ANIMAL: [
+    [0,0,0,0,0,0],
+    [0,0,1,1,1,0],
+    [0,1,1,1,1,1],
+    [0,1,0,1,0,1]
+  ],
   FUEL: [
     [0,1,1,1,0],
     [1,1,1,1,1],
@@ -143,7 +164,7 @@ const SPRITES: Record<string, number[][]> = {
     [1,0,1,0,1],
     [0,1,1,1,0]
   ],
-  // Boss Shapes (Reused for different bosses with colors)
+  // Boss Shapes
   BOSS_A: [ 
     [0,0,1,1,1,1,0,0],
     [0,1,1,1,1,1,1,0],
@@ -189,9 +210,14 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
   [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, 
   [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
-  [EntityType.HOUSE]: { width: 20, height: 16, score: 0, color: '#eab308', ground: true },
-  [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
   [EntityType.ROCK]: { width: 20, height: 16, score: 0, color: '#525252', obstacle: true },
+  // Ground Scenery
+  [EntityType.HOUSE]: { width: 20, height: 16, score: 50, color: '#eab308', ground: true },
+  [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
+  [EntityType.BASE]: { width: 24, height: 20, score: 100, color: '#3f3f46', ground: true },
+  [EntityType.STABLE]: { width: 22, height: 18, score: 50, color: '#78350f', ground: true },
+  [EntityType.ANIMAL]: { width: 12, height: 10, score: 10, color: '#e5e7eb', ground: true },
+
   // Powerups
   [EntityType.ITEM_SPREAD]: { width: 16, height: 16, score: 100, color: '#fbbf24' },
   [EntityType.ITEM_RAPID]: { width: 16, height: 16, score: 100, color: '#f97316' },
@@ -209,22 +235,22 @@ const LEVEL_CONFIGS: LevelConfig[] = [
   { // Level 1: Day
     colors: { bg: '#4d7c0f', water: '#3b82f6', earth: '#a16207', bridge: '#fbbf24' },
     spawnRate: 0.15,
-    pool: { [EntityType.HELICOPTER]: 30, [EntityType.SHIP]: 30, [EntityType.BOAT]: 20, [EntityType.FUEL]: 30, [EntityType.HOUSE]: 40, [EntityType.TREE]: 40, [EntityType.ROCK]: 20, [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2 }
+    pool: { [EntityType.HELICOPTER]: 30, [EntityType.SHIP]: 30, [EntityType.BOAT]: 20, [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2 }
   },
   { // Level 2: Sunset
     colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
     spawnRate: 0.18,
-    pool: { [EntityType.HELICOPTER]: 25, [EntityType.JET]: 25, [EntityType.SHIP]: 20, [EntityType.TANK]: 25, [EntityType.TURRET]: 20, [EntityType.FUEL]: 30, [EntityType.ROCK]: 25, [EntityType.ITEM_SPREAD]: 3, [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2 }
+    pool: { [EntityType.HELICOPTER]: 25, [EntityType.JET]: 25, [EntityType.SHIP]: 20, [EntityType.FUEL]: 30, [EntityType.ROCK]: 25, [EntityType.ITEM_SPREAD]: 3, [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2 }
   },
   { // Level 3: Night
     colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
     spawnRate: 0.20,
-    pool: { [EntityType.JET]: 40, [EntityType.MINE]: 40, [EntityType.TANK]: 20, [EntityType.TURRET]: 20, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3 }
+    pool: { [EntityType.JET]: 40, [EntityType.MINE]: 40, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3 }
   },
   { // Level 4+: Alien/Toxic
     colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
     spawnRate: 0.25,
-    pool: { [EntityType.JET]: 40, [EntityType.MINE]: 40, [EntityType.HELICOPTER]: 30, [EntityType.TURRET]: 30, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3 }
+    pool: { [EntityType.JET]: 40, [EntityType.MINE]: 40, [EntityType.HELICOPTER]: 30, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3 }
   }
 ];
 
@@ -421,31 +447,65 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     return { left: center - width / 2, right: center + width / 2 };
   };
 
-  const spawnEntity = (y: number) => {
+  const spawnBankEntity = (y: number, side: 'left' | 'right', limitX: number) => {
+      const state = gameState.current;
+      // Bank Logic: Always spawn scenery, sometimes spawn enemy
+      // Left side spans 0 to limitX
+      // Right side spans limitX to CANVAS_WIDTH
+      
+      let xMin = 0, xMax = 0;
+      if (side === 'left') {
+          xMin = 0;
+          xMax = limitX - 10;
+      } else {
+          xMin = limitX + 10;
+          xMax = CANVAS_WIDTH;
+      }
+
+      if (xMax - xMin < 10) return; // Too narrow
+
+      const x = xMin + Math.random() * (xMax - xMin);
+      
+      // Probabilities
+      const r = Math.random();
+      let type = EntityType.TREE;
+      
+      // 20% chance for a hostile ground unit if level > 1
+      if (state.level > 1 && r < 0.2) {
+           type = Math.random() > 0.5 ? EntityType.TANK : EntityType.TURRET;
+      } else {
+           // Scenery Mix
+           const s = Math.random();
+           if (s < 0.4) type = EntityType.TREE;
+           else if (s < 0.7) type = EntityType.HOUSE;
+           else if (s < 0.8) type = EntityType.BASE;
+           else if (s < 0.9) type = EntityType.STABLE;
+           else type = EntityType.ANIMAL;
+      }
+
+      const def = SPAWN_REGISTRY[type]!;
+      // Ensure completely off river
+      if (side === 'left' && x + def.width > limitX) return;
+      if (side === 'right' && x < limitX) return;
+
+      let vx = 0;
+      if (type === EntityType.TANK) {
+          vx = side === 'left' ? 8 : -8; // Tanks move towards river? or just patrol
+          // If patrol, move randomly? Let's simple patrol
+          vx = (Math.random() > 0.5 ? 1 : -1) * 10;
+      } else if (type === EntityType.ANIMAL) {
+          vx = (Math.random() - 0.5) * 5;
+      }
+
+      state.entities.push({
+          id: Math.random(), type, x, y,
+          width: def.width, height: def.height,
+          vx, vy: 0, active: true, frame: 0, scoreValue: def.score
+      });
+  };
+
+  const spawnRiverEntity = (y: number) => {
     const state = gameState.current;
-    
-    // --- BOSS SPAWNING ---
-    if (!state.bossActive && state.distanceInLevel > LEVEL_LENGTH) {
-        // Check if boss already exists nearby? No, just spawn once
-        if (!state.entities.some(e => e.type === EntityType.BOSS)) {
-            const bossId = (state.level - 1) % BOSS_CONFIGS.length;
-            const cfg = BOSS_CONFIGS[bossId];
-            state.entities.push({
-                id: Math.random(), type: EntityType.BOSS,
-                x: CANVAS_WIDTH / 2, y: y + 100, // Spawn ahead
-                width: cfg.width, height: cfg.height,
-                vx: 0, vy: 0, active: true, frame: 0,
-                hp: cfg.hp, maxHp: cfg.hp, bossId: bossId,
-                scoreValue: 2000
-            });
-            state.bossActive = true;
-            return; // Don't spawn anything else
-        }
-    }
-
-    if (state.bossActive) return; // Stop spawning during boss
-
-    // --- NORMAL SPAWNING ---
     const cfgIndex = Math.min(state.level - 1, LEVEL_CONFIGS.length - 1);
     const config = LEVEL_CONFIGS[cfgIndex];
     
@@ -477,25 +537,55 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     let x = 0;
     let vx = 0;
 
-    if (def.ground) {
-        const onRight = Math.random() > 0.5;
-        x = onRight ? bounds.right + 10 + Math.random() * 20 : bounds.left - 10 - Math.random() * 20;
-        if (type === EntityType.TANK) vx = onRight ? -8 : 8;
-    } else {
-        const margin = 20;
-        x = bounds.left + margin + Math.random() * (bounds.right - bounds.left - margin * 2);
-        
-        if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
-        if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
-        if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
-        if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
-    }
+    // River Items only
+    if (def.ground) return; // Skip if pool accidentaly has ground items, though we split logic
+
+    const margin = 20;
+    x = bounds.left + margin + Math.random() * (bounds.right - bounds.left - margin * 2);
+    
+    if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
+    if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
+    if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
+    if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
 
     state.entities.push({
         id: Math.random(), type, x, y,
         width: def.width, height: def.height,
         vx, vy: 0, active: true, frame: 0, scoreValue: def.score
     });
+  }
+
+  const spawnEntity = (y: number) => {
+    const state = gameState.current;
+    
+    // --- BOSS SPAWNING ---
+    if (!state.bossActive && state.distanceInLevel > LEVEL_LENGTH) {
+        if (!state.entities.some(e => e.type === EntityType.BOSS)) {
+            const bossId = (state.level - 1) % BOSS_CONFIGS.length;
+            const cfg = BOSS_CONFIGS[bossId];
+            state.entities.push({
+                id: Math.random(), type: EntityType.BOSS,
+                x: CANVAS_WIDTH / 2, y: y + 100, 
+                width: cfg.width, height: cfg.height,
+                vx: 0, vy: 0, active: true, frame: 0,
+                hp: cfg.hp, maxHp: cfg.hp, bossId: bossId,
+                scoreValue: 2000
+            });
+            state.bossActive = true;
+            return; 
+        }
+    }
+
+    if (state.bossActive) return; 
+
+    // --- SPAWNING LOGIC ---
+    // 1. River Contents (Enemies, Fuel, Rocks)
+    spawnRiverEntity(y);
+
+    // 2. Bank Contents (Scenery, Ground Enemies) - ALWAYS try to populate banks
+    const bounds = getBounds(y);
+    spawnBankEntity(y, 'left', bounds.left);
+    spawnBankEntity(y, 'right', bounds.right);
   };
 
   const createExplosion = (x: number, y: number, color: string) => {
@@ -662,6 +752,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
+        // Ground units simple patrol limits
+        if (ent.type === EntityType.TANK || ent.type === EntityType.ANIMAL) {
+            // Keep off river. We don't have easy access to river bounds for every entity every frame without calc
+            // For now, just let them drift, they are culled eventually
+        }
+
         if (ent.y < state.cameraY - 200) ent.active = false; // Cull behind
 
         // Collision
@@ -712,7 +808,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         if (ent.type === EntityType.BULLET) {
              state.entities.forEach(target => {
                  if (!target.active || target === ent || target.type === EntityType.BULLET || target.type === EntityType.EXPLOSION || target.type === EntityType.BOSS_BULLET) return;
-                 if (target.type === EntityType.ROCK || target.type === EntityType.TREE || target.type === EntityType.HOUSE) return;
+                 // Ground scenery can be destroyed for points too
+                 // if (target.type === EntityType.ROCK || target.type === EntityType.TREE || target.type === EntityType.HOUSE) return; 
 
                  const targetScreenY = CANVAS_HEIGHT - (target.y - state.cameraY);
                  if (Math.abs(ent.x - target.x) < target.width/2 + 4 && Math.abs(ent.y - target.y) < target.height/2 + 4) {
