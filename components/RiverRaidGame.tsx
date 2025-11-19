@@ -112,6 +112,26 @@ const SPRITES: Record<string, number[][]> = {
     [0,1,1,1,1,1],
     [0,1,0,1,0,1]
   ],
+  SHACK: [
+    [0,0,1,1,0,0],
+    [0,1,1,1,1,0],
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,1,1,1,1]
+  ],
+  CRATE: [
+    [1,1,1,1],
+    [1,0,0,1],
+    [1,0,0,1],
+    [1,1,1,1]
+  ],
+  HERD: [
+    [1,1,0,1,1,0],
+    [1,1,0,1,1,0],
+    [0,0,0,0,0,0],
+    [0,1,1,0,1,1],
+    [0,1,1,0,1,1]
+  ],
   FUEL: [
     [0,1,1,1,0],
     [1,1,1,1,1],
@@ -217,6 +237,9 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.BASE]: { width: 24, height: 20, score: 100, color: '#3f3f46', ground: true },
   [EntityType.STABLE]: { width: 22, height: 18, score: 50, color: '#78350f', ground: true },
   [EntityType.ANIMAL]: { width: 12, height: 10, score: 10, color: '#e5e7eb', ground: true },
+  [EntityType.SHACK]: { width: 18, height: 14, score: 30, color: '#92400e', ground: true },
+  [EntityType.CRATE]: { width: 12, height: 12, score: 20, color: '#b45309', ground: true },
+  [EntityType.HERD]: { width: 18, height: 14, score: 30, color: '#d4d4d8', ground: true },
 
   // Powerups
   [EntityType.ITEM_SPREAD]: { width: 16, height: 16, score: 100, color: '#fbbf24' },
@@ -283,6 +306,8 @@ const BOSS_CONFIGS: BossConfig[] = [
 class SoundEngine {
   ctx: AudioContext | null = null;
   gainNode: GainNode | null = null;
+  engineOsc: OscillatorNode | null = null;
+  engineGain: GainNode | null = null;
 
   constructor() {
     try {
@@ -292,6 +317,36 @@ class SoundEngine {
       this.gainNode.connect(this.ctx.destination);
       this.gainNode.gain.value = 0.3; 
     } catch (e) { console.error(e); }
+  }
+
+  startEngineHum() {
+    if (!this.ctx || this.engineOsc) return;
+    try {
+      const t = this.ctx.currentTime;
+      this.engineOsc = this.ctx.createOscillator();
+      this.engineGain = this.ctx.createGain();
+      
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.setValueAtTime(60, t);
+      
+      // Filter for a muffled engine sound
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 400;
+
+      this.engineGain.gain.setValueAtTime(0.05, t);
+
+      this.engineOsc.connect(filter);
+      filter.connect(this.engineGain);
+      this.engineGain.connect(this.gainNode!);
+      this.engineOsc.start();
+    } catch (e) { console.error("Error starting engine sound", e); }
+  }
+
+  updateEngine(speed: number) {
+    if (!this.ctx || !this.engineOsc) return;
+    const pitch = 60 + (speed / MAX_SCROLL_SPEED) * 60;
+    this.engineOsc.frequency.setTargetAtTime(pitch, this.ctx.currentTime, 0.1);
   }
 
   playTone(freq: number, type: OscillatorType, duration: number, vol: number = 0.1, slide: number = 0) {
@@ -416,9 +471,21 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   useEffect(() => {
       soundRef.current = new SoundEngine();
-      const resume = () => soundRef.current?.ctx?.resume();
+      const resume = () => {
+          if (soundRef.current?.ctx) {
+              soundRef.current.ctx.resume();
+              soundRef.current.startEngineHum();
+          }
+      };
       window.addEventListener('keydown', resume, { once: true });
       window.addEventListener('touchstart', resume, { once: true });
+      
+      // Clean up engine sound on exit
+      return () => {
+          if (soundRef.current?.engineOsc) {
+              try { soundRef.current.engineOsc.stop(); } catch (e) {}
+          }
+      };
   }, []);
 
   // --- GAME LOGIC ---
@@ -474,12 +541,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       if (state.level > 1 && r < 0.2) {
            type = Math.random() > 0.5 ? EntityType.TANK : EntityType.TURRET;
       } else {
-           // Scenery Mix
+           // Scenery Mix - Expanded
            const s = Math.random();
-           if (s < 0.4) type = EntityType.TREE;
-           else if (s < 0.7) type = EntityType.HOUSE;
-           else if (s < 0.8) type = EntityType.BASE;
-           else if (s < 0.9) type = EntityType.STABLE;
+           if (s < 0.3) type = EntityType.TREE;
+           else if (s < 0.5) type = EntityType.HOUSE;
+           else if (s < 0.6) type = EntityType.BASE;
+           else if (s < 0.7) type = EntityType.STABLE;
+           else if (s < 0.8) type = EntityType.SHACK;
+           else if (s < 0.9) type = EntityType.CRATE;
+           else if (s < 0.95) type = EntityType.HERD;
            else type = EntityType.ANIMAL;
       }
 
@@ -490,10 +560,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
       let vx = 0;
       if (type === EntityType.TANK) {
-          vx = side === 'left' ? 8 : -8; // Tanks move towards river? or just patrol
-          // If patrol, move randomly? Let's simple patrol
           vx = (Math.random() > 0.5 ? 1 : -1) * 10;
-      } else if (type === EntityType.ANIMAL) {
+      } else if (type === EntityType.ANIMAL || type === EntityType.HERD) {
           vx = (Math.random() - 0.5) * 5;
       }
 
@@ -647,6 +715,9 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     state.player.speed += (targetScroll - state.player.speed) * 5 * dt;
     state.cameraY += state.player.speed * dt;
     
+    // Update Ambient Sound
+    soundRef.current?.updateEngine(state.player.speed);
+
     if (!state.bossActive) {
       state.distanceSinceLastFuel += state.player.speed * dt;
       state.distanceInLevel += state.player.speed * dt;
@@ -753,9 +824,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
         // Ground units simple patrol limits
-        if (ent.type === EntityType.TANK || ent.type === EntityType.ANIMAL) {
-            // Keep off river. We don't have easy access to river bounds for every entity every frame without calc
-            // For now, just let them drift, they are culled eventually
+        if (ent.type === EntityType.TANK || ent.type === EntityType.ANIMAL || ent.type === EntityType.HERD) {
+            // Keep off river
         }
 
         if (ent.y < state.cameraY - 200) ent.active = false; // Cull behind

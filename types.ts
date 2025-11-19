@@ -23,7 +23,10 @@ export enum EntityType {
   BOSS_BULLET = 'BOSS_BULLET',
   BASE = 'BASE',
   STABLE = 'STABLE',
-  ANIMAL = 'ANIMAL'
+  ANIMAL = 'ANIMAL',
+  SHACK = 'SHACK',
+  CRATE = 'CRATE',
+  HERD = 'HERD'
 }
 
 export interface Entity {
