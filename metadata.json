@@ -1,0 +1,5 @@
+{
+  "name": "River Raid Remake",
+  "description": "A web-based clone of the classic Atari 2600 shooter River Raid. Fly up the river, manage fuel, and destroy enemies.",
+  "requestFramePermissions": []
+}
