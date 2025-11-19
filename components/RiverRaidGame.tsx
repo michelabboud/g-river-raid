@@ -1,25 +1,256 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Entity, EntityType, GameState, Particle, Player } from '../types';
+
+import React, { useEffect, useRef, useState } from 'react';
+import { Entity, EntityType, GameState, Player } from '../types';
 
 // --- CONSTANTS ---
 const CANVAS_WIDTH = 320;
 const CANVAS_HEIGHT = 480;
-const PLAYER_SPEED_X = 200; // px per second
-const MAX_SCROLL_SPEED = 150;
-const MIN_SCROLL_SPEED = 30;
-const BULLET_SPEED = 400;
-const FUEL_CONSUMPTION = 8; // per second
+const PLAYER_SPEED_X = 190;
+const PLAYER_SPEED_Y = 180;
+const MAX_SCROLL_SPEED = 250;
+const MIN_SCROLL_SPEED = 60;
+const BULLET_SPEED = 600;
+const FUEL_CONSUMPTION = 5.5;
 const RIVER_SEGMENT_HEIGHT = 20;
-const SPAWN_DISTANCE = 600; // Distance ahead of camera to spawn entities
+const SPAWN_DISTANCE = 700;
+const FUEL_GUARANTEE_DISTANCE = 800; // Ensure fuel appears at least this often
 
-// Colors
-const C_WATER = '#3b82f6';
-const C_GRASS = '#15803d';
-const C_EARTH = '#a16207';
-const C_PLAYER = '#fbbf24';
-const C_ENEMY = '#ef4444';
-const C_FUEL = '#ec4899';
-const C_BRIDGE = '#1f2937';
+// --- SPRITE DEFINITIONS (Improved Pixel Art) ---
+const SPRITES: Record<string, number[][]> = {
+  PLAYER: [
+    [0,0,0,1,0,0,0],
+    [0,0,1,1,1,0,0],
+    [0,1,1,0,1,1,0],
+    [0,1,1,0,1,1,0],
+    [1,1,1,0,1,1,1],
+    [1,1,1,0,1,1,1],
+    [0,1,0,1,0,1,0],
+    [1,1,0,0,0,1,1]
+  ],
+  HELICOPTER: [
+    [0,0,1,1,1,0,0],
+    [1,1,1,1,1,1,1],
+    [0,0,0,1,0,0,0],
+    [0,1,1,1,1,1,0],
+    [0,1,1,1,1,1,0],
+    [0,0,1,0,1,0,0],
+    [0,1,1,0,1,1,0]
+  ],
+  SHIP: [
+    [0,0,0,0,1,0,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0]
+  ],
+  JET: [
+    [0,0,0,1,0,0,0],
+    [0,0,1,1,1,0,0],
+    [0,1,1,1,1,1,0],
+    [1,1,0,1,0,1,1],
+    [1,1,0,1,0,1,1],
+    [1,0,0,1,0,0,1]
+  ],
+  TANK: [
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [1,1,1,1,1],
+    [1,0,1,0,1]
+  ],
+  HOUSE: [
+    [0,0,1,1,0,0],
+    [0,1,1,1,1,0],
+    [1,1,1,1,1,1],
+    [1,0,1,1,0,1],
+    [1,1,1,1,1,1]
+  ],
+  TREE: [
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [0,1,1,1,0],
+    [0,0,1,0,0]
+  ],
+  FUEL: [
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,1,1,1,1],
+    [0,1,1,1,0]
+  ],
+  MINE: [
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+    [0,1,0,1,0],
+    [0,1,1,1,0],
+    [1,0,0,0,1]
+  ],
+  ROCK: [
+    [0,0,1,1,0,0],
+    [0,1,1,1,1,0],
+    [1,1,1,1,1,1],
+    [0,1,1,1,1,1],
+    [0,0,1,1,1,0]
+  ]
+};
+
+// --- ENTITY & LEVEL CONFIGURATION ---
+
+interface EntityDef {
+  width: number;
+  height: number;
+  score: number;
+  color: string;
+  ground?: boolean; // true if it spawns on land (banks)
+  obstacle?: boolean; // true if it's a static obstacle (Rock)
+}
+
+const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
+  [EntityType.HELICOPTER]: { width: 20, height: 16, score: 100, color: '#ef4444' },
+  [EntityType.SHIP]: { width: 24, height: 14, score: 60, color: '#ef4444' },
+  [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
+  [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
+  [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, // Pinkish
+  [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
+  [EntityType.HOUSE]: { width: 20, height: 16, score: 0, color: '#eab308', ground: true },
+  [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
+  [EntityType.ROCK]: { width: 20, height: 16, score: 0, color: '#525252', obstacle: true },
+};
+
+interface LevelConfig {
+  colors: { bg: string; water: string; earth: string; bridge: string };
+  spawnRate: number; // base chance per spawn tick
+  pool: Partial<Record<EntityType, number>>; // Type -> Relative Weight
+}
+
+const LEVEL_CONFIGS: LevelConfig[] = [
+  { // Level 1: Day - Basic
+    colors: { bg: '#4d7c0f', water: '#3b82f6', earth: '#a16207', bridge: '#fbbf24' },
+    spawnRate: 0.04,
+    pool: { 
+      [EntityType.HELICOPTER]: 40, 
+      [EntityType.SHIP]: 40, 
+      [EntityType.FUEL]: 15,
+      [EntityType.HOUSE]: 10,
+      [EntityType.TREE]: 10
+    }
+  },
+  { // Level 2: Sunset - More air, introduce Tanks
+    colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
+    spawnRate: 0.05,
+    pool: { 
+      [EntityType.HELICOPTER]: 30, 
+      [EntityType.JET]: 20, 
+      [EntityType.SHIP]: 20, 
+      [EntityType.TANK]: 15,
+      [EntityType.FUEL]: 15,
+      [EntityType.ROCK]: 10
+    }
+  },
+  { // Level 3: Night - Mines and Jets
+    colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
+    spawnRate: 0.06,
+    pool: { 
+      [EntityType.JET]: 35, 
+      [EntityType.MINE]: 25, 
+      [EntityType.TANK]: 15,
+      [EntityType.FUEL]: 15,
+      [EntityType.ROCK]: 20
+    }
+  },
+  { // Level 4+: Alien/Toxic - Chaos
+    colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
+    spawnRate: 0.07,
+    pool: { 
+      [EntityType.JET]: 30, 
+      [EntityType.MINE]: 30, 
+      [EntityType.HELICOPTER]: 20, 
+      [EntityType.FUEL]: 15,
+      [EntityType.ROCK]: 20
+    }
+  }
+];
+
+// --- SOUND ENGINE (Enhanced) ---
+class SoundEngine {
+  ctx: AudioContext | null = null;
+  gainNode: GainNode | null = null;
+
+  constructor() {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      this.ctx = new Ctx();
+      this.gainNode = this.ctx.createGain();
+      this.gainNode.connect(this.ctx.destination);
+      this.gainNode.gain.value = 0.3; // Master volume
+    } catch (e) { console.error(e); }
+  }
+
+  playTone(freq: number, type: OscillatorType, duration: number, vol: number = 0.1, slide: number = 0) {
+    if (!this.ctx || this.ctx.state === 'suspended') return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (slide !== 0) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(10, freq + slide), t + duration);
+    }
+
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    osc.connect(gain);
+    gain.connect(this.gainNode!);
+    osc.start();
+    osc.stop(t + duration);
+  }
+
+  createNoiseBuffer() {
+    if (!this.ctx) return null;
+    const bufferSize = this.ctx.sampleRate * 2; // 2 seconds
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  }
+
+  playNoise(duration: number, vol: number = 0.1) {
+    if (!this.ctx || this.ctx.state === 'suspended') return;
+    const t = this.ctx.currentTime;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this.createNoiseBuffer();
+    const noiseGain = this.ctx.createGain();
+    
+    // Simple lowpass filter for "thud" sound
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+
+    noiseGain.gain.setValueAtTime(vol, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.gainNode!);
+    noise.start();
+    noise.stop(t + duration);
+  }
+
+  shoot() { this.playTone(900, 'square', 0.1, 0.1, -400); }
+  explosion() { this.playNoise(0.4, 0.4); }
+  refuel() { this.playTone(1200, 'sine', 0.15, 0.05); } // Ding ding
+  lowFuel() { this.playTone(150, 'sawtooth', 0.2, 0.1); }
+  move() { 
+     // Subtle engine hum? Maybe too annoying to loop.
+  }
+}
 
 interface Props {
   onExit: () => void;
@@ -30,20 +261,18 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
   
-  // Input State
   const keys = useRef<{ [key: string]: boolean }>({});
+  const soundRef = useRef<SoundEngine | null>(null);
   
-  // Game State Ref (Mutable for performance)
   const gameState = useRef<GameState>({
     player: {
       id: 0,
       type: EntityType.PLAYER,
       x: CANVAS_WIDTH / 2,
-      y: CANVAS_HEIGHT - 100,
-      width: 16,
-      height: 16,
-      vx: 0,
-      vy: 0,
+      y: CANVAS_HEIGHT - 80,
+      width: 24,
+      height: 18,
+      vx: 0, vy: 0,
       fuel: 100,
       speed: MIN_SCROLL_SPEED * 2,
       active: true,
@@ -55,282 +284,275 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     entities: [],
     particles: [],
     cameraY: 0,
-    riverSeed: Math.random() * 1000,
+    riverSeed: Math.random() * 9999,
     isGameOver: false,
     isPaused: false,
     lastShotTime: 0,
-    level: 1
+    level: 1,
+    distanceSinceLastFuel: 0
   });
 
-  const [hudState, setHudState] = useState({ score: 0, fuel: 100, lives: 3, gameOver: false });
+  const [hudState, setHudState] = useState({ score: 0, fuel: 100, lives: 3, gameOver: false, level: 1 });
 
-  // --- HELPER FUNCTIONS ---
+  useEffect(() => {
+      soundRef.current = new SoundEngine();
+      const resume = () => soundRef.current?.ctx?.resume();
+      window.addEventListener('keydown', resume, { once: true });
+      window.addEventListener('touchstart', resume, { once: true });
+  }, []);
 
-  // Simple Pseudo-Random for consistent map generation based on Y coordinate
+  // --- GAME LOGIC ---
+
+  // Procedural River Generation
   const noise = (y: number) => {
-    const x = (y + gameState.current.riverSeed) * 0.01;
-    return Math.sin(x) * 0.5 + Math.sin(x * 2.5) * 0.25 + Math.sin(x * 0.5) * 0.25;
+    const x = (y + gameState.current.riverSeed) * 0.006; // smoother river
+    return Math.sin(x) * 0.7 + Math.sin(x * 1.7) * 0.3;
   };
 
-  const getRiverWidth = (y: number) => {
-    // Narrow points occasionally
+  const getRiverStats = (y: number) => {
     const n = noise(y);
-    const baseWidth = CANVAS_WIDTH * 0.5;
-    const variable = CANVAS_WIDTH * 0.3;
-    let width = baseWidth + n * variable;
+    const center = (CANVAS_WIDTH / 2) + (n * (CANVAS_WIDTH * 0.25));
+    // Vary width based on level difficulty? Narrower is harder.
+    const levelFactor = Math.min(0.3, gameState.current.level * 0.02);
+    const baseWidth = CANVAS_WIDTH * (0.55 - levelFactor); 
+    const width = baseWidth + (Math.cos(y * 0.01) * 30);
     
-    // Force a bridge choke point every 2000 pixels
-    const bridgeZone = Math.abs((y % 2000) - 1000);
-    if (bridgeZone > 950) {
-       // Near bridge
-       return CANVAS_WIDTH * 0.8; // Wide river at bridge for crossing
+    // Bridge checkpoint forcing a wide straight area
+    const distToBridge = Math.abs((y % 3000) - 1500);
+    if (distToBridge > 1300) {
+        return { center: CANVAS_WIDTH / 2, width: CANVAS_WIDTH * 0.8, isBridgeZone: true };
     }
-    
-    return Math.max(40, Math.min(CANVAS_WIDTH - 20, width));
+
+    return { center, width: Math.max(60, width), isBridgeZone: false };
   };
 
-  const getRiverCenter = (y: number) => {
-    const n = noise(y + 5000); // Different seed offset
-    const maxOffset = CANVAS_WIDTH * 0.25;
-    return (CANVAS_WIDTH / 2) + (n * maxOffset);
-  };
-
-  const getRiverBounds = (y: number) => {
-    const w = getRiverWidth(y);
-    const c = getRiverCenter(y);
-    return {
-      left: c - w / 2,
-      right: c + w / 2
-    };
+  const getBounds = (y: number) => {
+    const { center, width } = getRiverStats(y);
+    return { left: center - width / 2, right: center + width / 2 };
   };
 
   const spawnEntity = (y: number) => {
-    // Deterministic spawning based on Y so it feels like a map
-    const spawnRate = 0.02 + (gameState.current.level * 0.005);
-    const seed = (y * 1234.5678) % 1;
+    const state = gameState.current;
     
-    // Only spawn if we are lucky
-    if (seed > spawnRate) return;
-
-    // Check bridge
-    if (Math.abs(y % 2000) < 20 && !gameState.current.entities.some(e => e.type === EntityType.BRIDGE && Math.abs(e.y - y) < 100)) {
-      gameState.current.entities.push({
-        id: Date.now() + Math.random(),
-        type: EntityType.BRIDGE,
-        x: CANVAS_WIDTH / 2,
-        y: y,
-        width: CANVAS_WIDTH,
-        height: 20,
-        vx: 0,
-        vy: 0,
-        active: true,
-        frame: 0
-      });
-      return;
+    // BRIDGE SPAWNING
+    if (Math.abs(y % 3000) < 20 && !state.entities.some(e => e.type === EntityType.BRIDGE && Math.abs(e.y - y) < 400)) {
+        state.entities.push({
+            id: Math.random(), type: EntityType.BRIDGE,
+            x: CANVAS_WIDTH/2, y: y, width: CANVAS_WIDTH, height: 24,
+            vx: 0, vy: 0, active: true, frame: 0, scoreValue: 500
+        });
+        return;
     }
 
-    const bounds = getRiverBounds(y);
-    const typeSeed = ((y * 987.6543) % 1);
+    const cfgIndex = Math.min(state.level - 1, LEVEL_CONFIGS.length - 1);
+    const config = LEVEL_CONFIGS[cfgIndex];
     
+    // Check Fuel Pity Timer
+    let forceFuel = false;
+    if (state.distanceSinceLastFuel > FUEL_GUARANTEE_DISTANCE) {
+        forceFuel = true;
+        state.distanceSinceLastFuel = 0;
+    }
+
+    if (!forceFuel && Math.random() > config.spawnRate) return;
+
+    // Determine Type
     let type = EntityType.HELICOPTER;
-    if (typeSeed > 0.7) type = EntityType.SHIP;
-    if (typeSeed > 0.9) type = EntityType.JET;
-    if (typeSeed < 0.15) type = EntityType.FUEL;
+    if (forceFuel) {
+        type = EntityType.FUEL;
+    } else {
+        // Weighted Random
+        const pool = config.pool;
+        const total = Object.values(pool).reduce((a, b) => a + b, 0);
+        let r = Math.random() * total;
+        for (const [k, v] of Object.entries(pool)) {
+            if (r < v) { type = k as EntityType; break; }
+            r -= v;
+        }
+    }
 
-    const margin = 20;
-    const spawnX = bounds.left + margin + ((bounds.right - margin) - (bounds.left + margin)) * ((y * 333) % 1);
+    if (type === EntityType.FUEL) state.distanceSinceLastFuel = 0;
 
-    gameState.current.entities.push({
-      id: Date.now() + Math.random(),
-      type,
-      x: spawnX,
-      y: y,
-      width: type === EntityType.FUEL ? 12 : 16,
-      height: type === EntityType.SHIP ? 8 : 12,
-      vx: type === EntityType.HELICOPTER ? 20 * (Math.random() > 0.5 ? 1 : -1) : 0,
-      vy: 0,
-      active: true,
-      frame: 0
+    // Setup Entity
+    const def = SPAWN_REGISTRY[type]!;
+    const bounds = getBounds(y);
+    let x = 0;
+    let vx = 0;
+
+    if (def.ground) {
+        // Spawn on bank
+        const onRight = Math.random() > 0.5;
+        x = onRight ? bounds.right + 10 + Math.random() * 20 : bounds.left - 10 - Math.random() * 20;
+        if (type === EntityType.TANK) vx = onRight ? -8 : 8;
+    } else {
+        // Spawn in river
+        const margin = 20;
+        x = bounds.left + margin + Math.random() * (bounds.right - bounds.left - margin * 2);
+        
+        // Movement logic based on type
+        if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
+        if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
+        if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
+    }
+
+    state.entities.push({
+        id: Math.random(),
+        type,
+        x, y,
+        width: def.width,
+        height: def.height,
+        vx, vy: 0,
+        active: true, frame: 0,
+        scoreValue: def.score
     });
   };
 
-  const createExplosion = (x: number, y: number, color: string = '#fbbf24') => {
-    for (let i = 8; i < 16; i++) {
-      const angle = (Math.PI * 2 * i) / 8;
-      const speed = 50 + Math.random() * 50;
-      gameState.current.particles.push({
+  const createExplosion = (x: number, y: number, color: string) => {
+    soundRef.current?.explosion();
+    for (let i = 0; i < 12; i++) {
+      state.particles.push({
         x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.5,
+        vx: (Math.random() - 0.5) * 150,
+        vy: (Math.random() - 0.5) * 150,
+        life: 0.5 + Math.random() * 0.3,
         color
       });
     }
   };
 
-  const resetPlayer = (fullReset = false) => {
-    const player = gameState.current.player;
-    if (fullReset) {
-        player.score = 0;
-        player.lives = 3;
-        player.fuel = 100;
-        gameState.current.cameraY = 0;
-        gameState.current.entities = [];
-        gameState.current.level = 1;
-    }
-    
-    // Place player safely in center of river
-    const currentY = gameState.current.cameraY + 100;
-    const bounds = getRiverBounds(currentY);
-    player.x = (bounds.left + bounds.right) / 2;
-    player.y = 100; // Screen relative Y
-    player.vx = 0;
-    player.isDead = false;
-    player.active = true;
-    player.fuel = 100;
-    gameState.current.isPaused = false;
-  };
-
-  // --- MAIN LOOP ---
+  const state = gameState.current; // Shortcut
 
   const update = (dt: number) => {
-    const state = gameState.current;
-    if (state.isGameOver || state.isPaused) return;
-    if (state.player.isDead) return;
+    if (state.isGameOver || state.isPaused || state.player.isDead) return;
 
-    // 1. Player Movement logic
-    // Horizontal
+    // --- CONTROLS ---
+    // Left/Right
     if (keys.current['ArrowLeft'] || keys.current['a']) state.player.vx = -PLAYER_SPEED_X;
     else if (keys.current['ArrowRight'] || keys.current['d']) state.player.vx = PLAYER_SPEED_X;
     else state.player.vx = 0;
 
-    state.player.x += state.player.vx * dt;
+    // Up/Down (Vertical Movement & Scroll Speed Control)
+    let targetScroll = MIN_SCROLL_SPEED * 1.5;
+    let moveY = 0;
 
-    // Vertical Speed (Scroll Speed)
-    let targetScrollSpeed = MAX_SCROLL_SPEED * 0.6; // Cruising speed
-    if (keys.current['ArrowUp'] || keys.current['w']) targetScrollSpeed = MAX_SCROLL_SPEED;
-    if (keys.current['ArrowDown'] || keys.current['s']) targetScrollSpeed = MIN_SCROLL_SPEED;
-    
-    // Smooth acceleration
-    state.player.speed += (targetScrollSpeed - state.player.speed) * 5 * dt;
+    if (keys.current['ArrowUp'] || keys.current['w']) {
+        targetScroll = MAX_SCROLL_SPEED; // Fast
+        moveY = -PLAYER_SPEED_Y; 
+    } else if (keys.current['ArrowDown'] || keys.current['s']) {
+        targetScroll = MIN_SCROLL_SPEED; // Slow
+        moveY = PLAYER_SPEED_Y;
+    }
+
+    // Apply visual Y movement
+    state.player.y += moveY * dt;
+    // Clamp Visual Y (Top 10% to Bottom 20%)
+    state.player.y = Math.max(CANVAS_HEIGHT * 0.1, Math.min(CANVAS_HEIGHT * 0.85, state.player.y));
+
+    // Smooth Scroll Speed Transition
+    state.player.speed += (targetScroll - state.player.speed) * 5 * dt;
+
+    // Advance World
     state.cameraY += state.player.speed * dt;
-
-    // 2. Fuel Logic
+    state.distanceSinceLastFuel += state.player.speed * dt;
+    state.player.x += state.player.vx * dt;
     state.player.fuel -= FUEL_CONSUMPTION * dt;
-    if (state.player.fuel <= 0) {
-        handleDeath();
+
+    // Shooting
+    if (keys.current[' '] && Date.now() - state.lastShotTime > 250) {
+        state.lastShotTime = Date.now();
+        soundRef.current?.shoot();
+        state.entities.push({
+            id: Math.random(), type: EntityType.BULLET,
+            x: state.player.x, y: state.cameraY + (CANVAS_HEIGHT - state.player.y) - 10,
+            width: 4, height: 8, vx: 0, vy: BULLET_SPEED + state.player.speed,
+            active: true, frame: 0
+        });
     }
 
-    // 3. Shooting
-    if (keys.current[' '] && Date.now() - state.lastShotTime > 300) {
-      state.lastShotTime = Date.now();
-      state.entities.push({
-        id: Date.now(),
-        type: EntityType.BULLET,
-        x: state.player.x,
-        y: state.cameraY + state.player.y + 5,
-        width: 2,
-        height: 6,
-        vx: 0,
-        vy: BULLET_SPEED + state.player.speed, // Bullet moves relative to world, faster than plane
-        active: true,
-        frame: 0
-      });
-    }
-
-    // 4. Collision Detection - World (River Banks)
-    // We check collision at the player's WORLD Y.
-    // Player Y is relative to screen bottom (essentially fixed on screen)
-    // World Y = cameraY + player.y
-    const playerWorldY = state.cameraY + state.player.y;
-    const bounds = getRiverBounds(playerWorldY);
+    // --- COLLISIONS & LOGIC ---
     
-    // Player hitbox is small
-    const halfW = state.player.width / 2;
-    if (state.player.x - halfW < bounds.left || state.player.x + halfW > bounds.right) {
-        // Crashed into land
-        handleDeath();
+    // 1. Bank Collision
+    const worldPlayerY = state.cameraY + (CANVAS_HEIGHT - state.player.y);
+    const bounds = getBounds(worldPlayerY);
+    if (state.player.x < bounds.left + 8 || state.player.x > bounds.right - 8) {
+        die();
     }
 
-    // 5. Entities Update
-    // Spawn new ones ahead
+    // 2. Spawning
     const spawnY = Math.floor((state.cameraY + SPAWN_DISTANCE) / 50) * 50;
-    if (spawnY > (Math.floor((state.cameraY + SPAWN_DISTANCE - state.player.speed * dt) / 50) * 50)) {
-       spawnEntity(spawnY);
-    }
+    const prevSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE - state.player.speed * dt) / 50) * 50;
+    if (spawnY > prevSpawnY) spawnEntity(spawnY);
 
+    // 3. Entities
     state.entities.forEach(ent => {
         if (!ent.active) return;
 
-        // Move Enemies
-        if (ent.type === EntityType.HELICOPTER) {
-            // Patrol logic
-            const b = getRiverBounds(ent.y);
-            ent.x += ent.vx * dt;
+        // Movement
+        if (ent.type === EntityType.BULLET) ent.y += ent.vy * dt;
+        else ent.x += ent.vx * dt;
+
+        // Screen Wrapping (Reflected) for simple enemies
+        if (ent.type === EntityType.HELICOPTER || ent.type === EntityType.SHIP) {
+            const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
-        } else if (ent.type === EntityType.JET) {
-            ent.x += 50 * dt; // Jets strafe fast
-        } else if (ent.type === EntityType.BULLET) {
-            ent.y += ent.vy * dt;
         }
 
-        // Cleanup off-screen (behind player)
-        if (ent.y < state.cameraY - 50) {
-            ent.active = false;
-        }
+        // Cull
+        if (ent.y < state.cameraY - 100) ent.active = false;
 
-        // Collision with Player
-        // Convert entity world Y to screen Y for AABB check
-        // Player is at state.player.y (screen coords)
-        // Entity Screen Y = ent.y - state.cameraY
-        const entScreenY = ent.y - state.cameraY;
+        // Collision Detection
+        const entScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
+        const playerScreenY = state.player.y;
         
-        // AABB
-        if (Math.abs(state.player.x - ent.x) < (state.player.width + ent.width) / 2 &&
-            Math.abs(state.player.y - entScreenY) < (state.player.height + ent.height) / 2) {
-             
-             if (ent.type === EntityType.FUEL) {
-                 // Refuel sound effect trigger here
-                 state.player.fuel = Math.min(100, state.player.fuel + 40 * dt); // Need to hover to fill
-             } else if (ent.type !== EntityType.BULLET) {
-                 handleDeath();
-             }
+        // Player vs Entity
+        if (Math.abs(state.player.x - ent.x) < (state.player.width + ent.width)/2 - 4 &&
+            Math.abs(playerScreenY - entScreenY) < (state.player.height + ent.height)/2 - 4) {
+            
+            if (ent.type === EntityType.FUEL) {
+                state.player.fuel = Math.min(100, state.player.fuel + 40 * dt);
+                if (Math.random() > 0.8) soundRef.current?.refuel();
+            } else {
+                // Crash
+                die();
+            }
         }
 
-        // Collision with Bullets
+        // Bullet vs Entity
         if (ent.type === EntityType.BULLET) {
-            // Check against other entities
-            state.entities.forEach(target => {
-                if (!target.active || target.type === EntityType.BULLET || target.type === EntityType.EXPLOSION) return;
-                
-                // Bullet hits target?
-                if (Math.abs(ent.x - target.x) < (ent.width + target.width) / 2 &&
-                    Math.abs(ent.y - target.y) < (ent.height + target.height) / 2) {
-                    
-                    // Hit!
-                    ent.active = false;
-                    if (target.type === EntityType.BRIDGE) {
-                        target.active = false;
-                        createExplosion(target.x, target.y - state.cameraY, '#fff');
-                        state.player.score += 500;
-                        state.level++; // Checkpoint
-                    } else {
-                        target.active = false;
-                        createExplosion(target.x, target.y - state.cameraY);
-                        state.player.score += (target.type === EntityType.FUEL ? 60 : 100);
-                    }
-                }
-            });
-            
-            // Bullet hits land?
-            const bBounds = getRiverBounds(ent.y);
-            if (ent.x < bBounds.left || ent.x > bBounds.right) {
-                ent.active = false; // Hit wall
-            }
+             // Bullet hitting walls?
+             const bBounds = getBounds(ent.y);
+             if (ent.x < bBounds.left || ent.x > bBounds.right) ent.active = false;
+
+             // Bullet hitting enemies
+             state.entities.forEach(target => {
+                 if (!target.active || target === ent || target.type === EntityType.BULLET || target.type === EntityType.EXPLOSION) return;
+                 
+                 // Don't shoot trees or houses or rocks? (Rocks indestructible)
+                 if (target.type === EntityType.ROCK || target.type === EntityType.TREE || target.type === EntityType.HOUSE) return;
+
+                 const targetScreenY = CANVAS_HEIGHT - (target.y - state.cameraY);
+                 const bulletScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
+                 
+                 if (Math.abs(ent.x - target.x) < target.width/2 + 4 && Math.abs(ent.y - target.y) < target.height/2 + 4) {
+                     ent.active = false; // Bullet dies
+                     
+                     if (target.type === EntityType.BRIDGE) {
+                         target.active = false;
+                         createExplosion(target.x, targetScreenY, '#fff');
+                         state.player.score += 500;
+                         state.level++;
+                         // Flash screen?
+                     } else {
+                         target.active = false;
+                         createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
+                         state.player.score += (target.scoreValue || 50);
+                     }
+                 }
+             });
         }
     });
 
-    // 6. Particles
+    // 4. Particles
     state.particles.forEach(p => {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
@@ -338,302 +560,224 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     });
     state.particles = state.particles.filter(p => p.life > 0);
 
-    // Sync React State for HUD occasionally
-    if (Math.random() > 0.9) {
-        setHudState({
-            score: state.player.score,
-            fuel: state.player.fuel,
-            lives: state.player.lives,
-            gameOver: state.isGameOver
+    // 5. Check Conditions
+    if (state.player.fuel <= 0) die();
+    if (state.player.fuel < 25 && Math.random() < 0.05) soundRef.current?.lowFuel();
+
+    // Update HUD occasionally
+    if (Math.random() > 0.5) {
+        setHudState({ 
+            score: state.player.score, 
+            fuel: state.player.fuel, 
+            lives: state.player.lives, 
+            gameOver: state.isGameOver,
+            level: state.level
         });
     }
   };
 
-  const handleDeath = () => {
-      const state = gameState.current;
-      createExplosion(state.player.x, state.player.y, '#ef4444');
+  const die = () => {
+      if (state.player.isDead) return;
+      createExplosion(state.player.x, state.player.y, '#fbbf24');
       state.player.isDead = true;
-      state.player.lives -= 1;
+      state.player.lives--;
       
       setTimeout(() => {
           if (state.player.lives > 0) {
-              resetPlayer();
+              // Reset Position
               state.player.isDead = false;
+              state.player.active = true;
+              state.player.fuel = 100;
+              state.player.y = CANVAS_HEIGHT - 80;
+              
+              // Find safe X
+              const b = getBounds(state.cameraY + 200);
+              state.player.x = (b.left + b.right) / 2;
+              state.player.vx = 0;
+              
+              // Clear nearby enemies
+              state.entities = state.entities.filter(e => e.y > state.cameraY + 600 || e.y < state.cameraY - 100);
           } else {
               state.isGameOver = true;
-              setHudState(prev => ({ ...prev, gameOver: true }));
+              setHudState(s => ({...s, gameOver: true}));
           }
-      }, 2000);
+      }, 1500);
   };
 
-  // --- DRAWING ---
-
-  const drawEntity = (ctx: CanvasRenderingContext2D, ent: Entity, screenY: number) => {
-    const { x, width, height, type } = ent;
-    const y = screenY; // already converted
-    
-    ctx.save();
-    ctx.translate(Math.floor(x), Math.floor(y));
-    
-    if (type === EntityType.PLAYER) {
-        ctx.fillStyle = C_PLAYER;
-        // Simple Jet shape
-        ctx.beginPath();
-        ctx.moveTo(0, -8);
-        ctx.lineTo(4, 2);
-        ctx.lineTo(8, 4);
-        ctx.lineTo(2, 4);
-        ctx.lineTo(0, 8);
-        ctx.lineTo(-2, 4);
-        ctx.lineTo(-8, 4);
-        ctx.lineTo(-4, 2);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Jet shadow/detail
-        ctx.fillStyle = 'black';
-        ctx.fillRect(-1, -2, 2, 6);
-
-    } else if (type === EntityType.HELICOPTER) {
-        ctx.fillStyle = C_ENEMY;
-        ctx.fillRect(-6, -3, 12, 6); // Body
-        ctx.fillStyle = '#000';
-        // Rotor animation
-        const rotor = (Date.now() / 50) % 2 > 1 ? 8 : -8;
-        ctx.fillRect(-8, -5, 16, 2); // Rotor
-        ctx.fillRect(-2, -5, 4, -2); // Top
-    } else if (type === EntityType.SHIP) {
-        ctx.fillStyle = C_ENEMY;
-        ctx.fillRect(-8, -2, 16, 4);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(-4, -5, 8, 3);
-    } else if (type === EntityType.FUEL) {
-        ctx.fillStyle = C_FUEL;
-        ctx.fillRect(-5, -8, 10, 16);
-        ctx.fillStyle = '#fff';
-        ctx.font = '8px monospace';
-        ctx.fillText('F', -2, 2);
-    } else if (type === EntityType.BRIDGE) {
-        ctx.fillStyle = C_BRIDGE;
-        ctx.fillRect(-CANVAS_WIDTH/2, -10, CANVAS_WIDTH, 20);
-        ctx.fillStyle = '#fbbf24'; // Road stripes
-        ctx.fillRect(-CANVAS_WIDTH/2, -1, CANVAS_WIDTH, 2);
-    } else if (type === EntityType.BULLET) {
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(-1, -3, 2, 6);
-    } else if (type === EntityType.JET) {
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.moveTo(0, -6);
-        ctx.lineTo(6, 6);
-        ctx.lineTo(-6, 6);
-        ctx.fill();
-    }
-    
-    ctx.restore();
+  // --- RENDERER ---
+  const drawSprite = (ctx: CanvasRenderingContext2D, type: string, x: number, y: number, scale: number = 2, colorOverride?: string) => {
+      const sprite = SPRITES[type];
+      if (!sprite) return;
+      const h = sprite.length * scale;
+      const w = sprite[0].length * scale;
+      
+      ctx.save();
+      ctx.translate(Math.floor(x - w/2), Math.floor(y - h/2));
+      ctx.fillStyle = colorOverride || '#fff';
+      
+      for (let r = 0; r < sprite.length; r++) {
+          for (let c = 0; c < sprite[0].length; c++) {
+              if (sprite[r][c]) ctx.fillRect(c * scale, r * scale, scale, scale);
+          }
+      }
+      ctx.restore();
   };
 
   const draw = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    const state = gameState.current;
+      const cfg = LEVEL_CONFIGS[(state.level - 1) % LEVEL_CONFIGS.length];
 
-    // Clear
-    ctx.fillStyle = C_GRASS;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // 1. Background
+      ctx.fillStyle = cfg.colors.bg;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Draw River
-    // Optimization: Draw strips.
-    ctx.fillStyle = C_WATER;
-    
-    // We draw from screen bottom (cameraY) to screen top (cameraY + height)
-    // Step size matches RIVER_SEGMENT_HEIGHT
-    const startY = Math.floor(state.cameraY / RIVER_SEGMENT_HEIGHT) * RIVER_SEGMENT_HEIGHT;
-    const endY = startY + CANVAS_HEIGHT + RIVER_SEGMENT_HEIGHT;
+      // 2. River
+      const startY = Math.floor(state.cameraY / RIVER_SEGMENT_HEIGHT) * RIVER_SEGMENT_HEIGHT;
+      const endY = startY + CANVAS_HEIGHT + RIVER_SEGMENT_HEIGHT;
+      
+      ctx.fillStyle = cfg.colors.water;
+      ctx.beginPath();
+      for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
+          const b = getBounds(y);
+          const sy = CANVAS_HEIGHT - (y - state.cameraY);
+          ctx.rect(b.left, sy - RIVER_SEGMENT_HEIGHT, b.right - b.left, RIVER_SEGMENT_HEIGHT + 2);
+      }
+      ctx.fill();
 
-    ctx.beginPath();
-    for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
-        const bounds = getRiverBounds(y);
-        const screenY = CANVAS_HEIGHT - (y - state.cameraY);
-        
-        // To make it smooth, we might want quadTo, but rects are more retro
-        ctx.rect(bounds.left, screenY - RIVER_SEGMENT_HEIGHT, bounds.right - bounds.left, RIVER_SEGMENT_HEIGHT + 1);
-    }
-    ctx.fill();
-    
-    // Draw Mud Banks (Lines at edges)
-    ctx.fillStyle = C_EARTH;
-    for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
-        const bounds = getRiverBounds(y);
-        const screenY = CANVAS_HEIGHT - (y - state.cameraY);
-        ctx.fillRect(bounds.left - 4, screenY - RIVER_SEGMENT_HEIGHT, 4, RIVER_SEGMENT_HEIGHT + 1);
-        ctx.fillRect(bounds.right, screenY - RIVER_SEGMENT_HEIGHT, 4, RIVER_SEGMENT_HEIGHT + 1);
-    }
+      // River Banks Detail
+      ctx.fillStyle = cfg.colors.earth;
+      for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
+          const b = getBounds(y);
+          const sy = CANVAS_HEIGHT - (y - state.cameraY);
+          ctx.fillRect(b.left - 5, sy - RIVER_SEGMENT_HEIGHT, 5, RIVER_SEGMENT_HEIGHT + 2);
+          ctx.fillRect(b.right, sy - RIVER_SEGMENT_HEIGHT, 5, RIVER_SEGMENT_HEIGHT + 2);
+      }
 
-    // Draw Entities
-    state.entities.forEach(ent => {
-        if (!ent.active) return;
-        // Entity Y is world coordinate. Convert to screen.
-        // Screen 0,0 is top-left.
-        // World is scrolling up.
-        // ScreenY = CANVAS_HEIGHT - (ent.y - cameraY)  <-- This would mean y=0 is bottom.
-        // BUT, standard canvas is y=0 top.
-        // Let's say Player is at screen y=380 (near bottom).
-        // That corresponds to cameraY.
-        // Let's flip the logic to match `update`:
-        // In update: player Y is screen relative (e.g. 100px from bottom).
-        // CameraY tracks how far we flew.
-        // World Y of an object is absolute.
-        // ScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
-        // Wait, if cameraY increases, objects should move DOWN.
-        // So ScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY) - OFFSET?
-        
-        // Let's redefine coordinates for sanity:
-        // CameraY = 0 initially.
-        // Player is at fixed ScreenY e.g. 400.
-        // Objects are at WorldY.
-        // Object ScreenY = (CANVAS_HEIGHT - PlayerScreenY) + (PlayerWorldY - ObjectWorldY) ? No.
-        
-        // SIMPLER:
-        // Screen Y=0 is Top. Y=480 is Bottom.
-        // Camera is looking at `cameraY` (bottom of screen).
-        // Object at `cameraY` should be at bottom (480).
-        // Object at `cameraY + 480` should be at top (0).
-        // Object ScreenY = CANVAS_HEIGHT - (ObjectWorldY - state.cameraY);
-        
-        const screenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
-        if (screenY > -50 && screenY < CANVAS_HEIGHT + 50) {
-            drawEntity(ctx, ent, screenY);
-        }
-    });
+      // 3. Entities
+      state.entities.forEach(ent => {
+          if (!ent.active) return;
+          const screenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
+          if (screenY < -50 || screenY > CANVAS_HEIGHT + 50) return;
 
-    // Draw Player
-    if (!state.player.isDead) {
-        // Player Y in state is "distance from bottom"
-        // So screen Y = CANVAS_HEIGHT - player.y
-        drawEntity(ctx, state.player, CANVAS_HEIGHT - state.player.y);
-    }
+          if (ent.type === EntityType.BRIDGE) {
+              ctx.fillStyle = cfg.colors.bridge;
+              ctx.fillRect(0, screenY - 12, CANVAS_WIDTH, 24);
+              ctx.fillStyle = '#000';
+              ctx.fillRect(0, screenY - 2, CANVAS_WIDTH, 4);
+              ctx.fillStyle = '#fbbf24';
+              ctx.font = '10px monospace';
+              ctx.fillText(`BRIDGE ${state.level}`, CANVAS_WIDTH/2 - 20, screenY - 15);
+          } else if (ent.type === EntityType.BULLET) {
+              ctx.fillStyle = '#fbbf24';
+              ctx.fillRect(ent.x - 2, screenY - 4, 4, 8);
+          } else {
+              const def = SPAWN_REGISTRY[ent.type] || { color: '#fff' };
+              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER;
+              
+              // Shadow for flying things
+              if (isAir) {
+                  drawSprite(ctx, ent.type, ent.x + 10, screenY + 10, 2.5, 'rgba(0,0,0,0.3)');
+              }
 
-    // Draw Particles
-    state.particles.forEach(p => {
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x, CANVAS_HEIGHT - (p.y - state.cameraY), 3, 3);
-    });
+              // Draw Entity
+              drawSprite(ctx, ent.type, ent.x, screenY, 2.5, def.color);
+
+              // Water trail for ships
+              if (ent.type === EntityType.SHIP) {
+                  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                  ctx.fillRect(ent.x - 4, screenY + 10, 8, 4);
+              }
+          }
+      });
+
+      // 4. Player
+      if (!state.player.isDead) {
+          // Shadow
+          drawSprite(ctx, 'PLAYER', state.player.x + 8, state.player.y + 8, 2.5, 'rgba(0,0,0,0.4)');
+          // Jet
+          drawSprite(ctx, 'PLAYER', state.player.x, state.player.y, 2.5, '#eab308');
+          // Thrust
+          ctx.fillStyle = Math.random() > 0.5 ? '#ef4444' : '#f59e0b';
+          ctx.fillRect(state.player.x - 2, state.player.y + 12, 4, 6);
+      }
+
+      // 5. Particles
+      state.particles.forEach(p => {
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.fillRect(p.x, p.y, 4, 4);
+          ctx.globalAlpha = 1;
+      });
   };
 
   const loop = (time: number) => {
-    if (previousTimeRef.current !== undefined) {
-      const dt = Math.min((time - previousTimeRef.current) / 1000, 0.05); // Cap dt at 50ms
-      update(dt);
-      draw();
-    }
-    previousTimeRef.current = time;
-    requestRef.current = requestAnimationFrame(loop);
+      if (previousTimeRef.current !== undefined) {
+          const dt = Math.min((time - previousTimeRef.current) / 1000, 0.06);
+          update(dt);
+          draw();
+      }
+      previousTimeRef.current = time;
+      requestRef.current = requestAnimationFrame(loop);
   };
 
   useEffect(() => {
-    // Input Listeners
-    const handleKeyDown = (e: KeyboardEvent) => keys.current[e.key] = true;
-    const handleKeyUp = (e: KeyboardEvent) => keys.current[e.key] = false;
-    
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    // Start Loop
-    requestRef.current = requestAnimationFrame(loop);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+      const onKey = (e: KeyboardEvent, v: boolean) => keys.current[e.key] = v;
+      const down = (e: KeyboardEvent) => onKey(e, true);
+      const up = (e: KeyboardEvent) => onKey(e, false);
+      window.addEventListener('keydown', down);
+      window.addEventListener('keyup', up);
+      requestRef.current = requestAnimationFrame(loop);
+      return () => {
+          window.removeEventListener('keydown', down);
+          window.removeEventListener('keyup', up);
+          cancelAnimationFrame(requestRef.current);
+      };
   }, []);
 
-  // Touch Controls
-  const handleTouchStart = (action: string) => {
-      keys.current[action] = true;
-  };
-  const handleTouchEnd = (action: string) => {
-      keys.current[action] = false;
-  };
-
-
+  // --- HUD ---
   return (
     <div className="relative w-full h-full flex items-center justify-center bg-black">
-        {/* Game Canvas */}
-        <canvas
+      <div className="relative">
+          <canvas
             ref={canvasRef}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
-            className="h-full aspect-[2/3] bg-zinc-900 shadow-2xl max-h-[90vh] border-4 border-zinc-700 rounded-md"
-        />
-        
-        {/* HUD Overlay */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-md px-6 flex justify-between font-mono text-xl font-bold drop-shadow-md pointer-events-none">
-            <div className="text-yellow-400">SCORE: {hudState.score.toString().padStart(6, '0')}</div>
-            <div className={hudState.fuel < 30 ? "text-red-500 animate-pulse" : "text-white"}>
-                FUEL: <span className="inline-block w-24 h-4 bg-zinc-700 border border-white align-middle ml-1">
-                    <span className="block h-full bg-pink-500 transition-all duration-200" style={{ width: `${Math.max(0, hudState.fuel)}%` }}></span>
-                </span>
-            </div>
-        </div>
-        
-        {/* Game Over Screen */}
-        {hudState.gameOver && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 text-white animate-in fade-in duration-300">
-                <h2 className="text-5xl font-black text-red-500 mb-4">GAME OVER</h2>
-                <p className="text-2xl mb-8">FINAL SCORE: {hudState.score}</p>
-                <div className="flex gap-4">
-                    <button 
-                        onClick={() => {
-                            resetPlayer(true);
-                            setHudState(prev => ({ ...prev, gameOver: false }));
-                        }}
-                        className="px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded uppercase"
-                    >
-                        Try Again
-                    </button>
-                    <button 
-                        onClick={onExit}
-                        className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white font-bold rounded uppercase"
-                    >
-                        Exit
-                    </button>
-                </div>
-            </div>
-        )}
+            className="bg-black shadow-2xl scale-[1.5] origin-center border-4 border-zinc-800"
+            style={{ imageRendering: 'pixelated' }}
+          />
+          
+          {/* OVERLAY UI */}
+          <div className="absolute top-0 left-0 w-full p-2 flex justify-between font-mono text-white font-bold text-sm tracking-wider drop-shadow-md">
+              <div>SCORE {hudState.score.toString().padStart(6, '0')}</div>
+              <div>LIVES {hudState.lives}</div>
+          </div>
+          
+          {/* FUEL GAUGE */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 h-6 bg-zinc-900 border-2 border-zinc-600 rounded">
+              <div 
+                className={`h-full transition-all duration-200 ${hudState.fuel < 25 ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-yellow-500 to-green-500'}`}
+                style={{ width: `${Math.max(0, hudState.fuel)}%` }}
+              />
+              <div className="absolute top-0 w-full text-center text-[10px] text-white font-bold leading-5 drop-shadow-md">FUEL</div>
+          </div>
 
-        {/* Mobile Controls Overlay */}
-        <div className="absolute bottom-8 left-0 right-0 px-8 flex justify-between md:hidden select-none">
-            <div className="flex gap-4">
-                <button 
-                    onTouchStart={() => handleTouchStart('ArrowLeft')} 
-                    onTouchEnd={() => handleTouchEnd('ArrowLeft')}
-                    className="w-16 h-16 bg-white/20 rounded-full backdrop-blur flex items-center justify-center active:bg-white/40"
-                >
-                   ←
-                </button>
-                <button 
-                    onTouchStart={() => handleTouchStart('ArrowRight')} 
-                    onTouchEnd={() => handleTouchEnd('ArrowRight')}
-                    className="w-16 h-16 bg-white/20 rounded-full backdrop-blur flex items-center justify-center active:bg-white/40"
-                >
-                   →
-                </button>
-            </div>
-            <div className="flex gap-4">
-                <button 
-                    onTouchStart={() => handleTouchStart(' ')} 
-                    onTouchEnd={() => handleTouchEnd(' ')}
-                    className="w-20 h-20 bg-red-500/50 rounded-full backdrop-blur flex items-center justify-center active:bg-red-500/70 font-bold border-2 border-red-400"
-                >
-                   FIRE
-                </button>
-            </div>
-        </div>
+          {hudState.gameOver && (
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center space-y-4 animate-fade-in">
+                  <h2 className="text-4xl font-black text-red-500 tracking-widest">GAME OVER</h2>
+                  <div className="text-xl text-white">FINAL SCORE: {hudState.score}</div>
+                  <button 
+                    onClick={onExit}
+                    className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded shadow-lg"
+                  >
+                      RETURN TO BASE
+                  </button>
+              </div>
+          )}
+      </div>
     </div>
   );
 };

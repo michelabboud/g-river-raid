@@ -1,3 +1,4 @@
+
 export enum EntityType {
   PLAYER = 'PLAYER',
   HELICOPTER = 'HELICOPTER',
@@ -6,7 +7,12 @@ export enum EntityType {
   FUEL = 'FUEL',
   BRIDGE = 'BRIDGE',
   BULLET = 'BULLET',
-  EXPLOSION = 'EXPLOSION'
+  EXPLOSION = 'EXPLOSION',
+  MINE = 'MINE',
+  TANK = 'TANK',
+  HOUSE = 'HOUSE',
+  TREE = 'TREE',
+  ROCK = 'ROCK'
 }
 
 export interface Entity {
@@ -20,6 +26,7 @@ export interface Entity {
   vy: number;
   active: boolean;
   frame: number; // For animation
+  scoreValue?: number;
 }
 
 export interface Player extends Entity {
@@ -49,4 +56,5 @@ export interface GameState {
   isPaused: boolean;
   lastShotTime: number;
   level: number;
+  distanceSinceLastFuel: number;
 }
