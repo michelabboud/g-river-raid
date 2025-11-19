@@ -12,7 +12,7 @@ const MIN_SCROLL_SPEED = 60;
 const BASE_BULLET_SPEED = 600;
 const UPGRADED_BULLET_SPEED = 900;
 const BOSS_BULLET_SPEED = 100; // Slower boss bullets
-const FUEL_CONSUMPTION = 5.5;
+const FUEL_CONSUMPTION = 4.0; // Reduced by ~25%
 const FUEL_REGEN_RATE = 3.0;
 const RIVER_SEGMENT_HEIGHT = 20;
 const SPAWN_DISTANCE = 700;
@@ -79,6 +79,15 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,0,1,0,1,1],
     [1,1,0,1,0,1,1],
     [1,0,0,1,0,0,1]
+  ],
+  FIGHTER: [
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [1,0,1,0,1],
+    [0,1,0,1,0]
   ],
   BOMBER: [
     [0,0,0,1,1,1,0,0,0],
@@ -204,6 +213,10 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [1,0,1,0,1],
     [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
     [1,1,1,1,1],
     [0,1,1,1,0]
   ],
@@ -258,6 +271,14 @@ const SPRITES: Record<string, number[][]> = {
      [1,0,1,0,1],
      [0,0,1,0,0]
   ],
+  ITEM_LIFE: [
+    [0,1,0,1,0],
+    [1,1,1,1,1],
+    [1,1,1,1,1],
+    [1,1,1,1,1],
+    [0,1,1,1,0],
+    [0,0,1,0,0]
+  ],
   BOSS_A: [ 
     [0,0,1,1,1,1,0,0],
     [0,1,1,1,1,1,1,0],
@@ -301,13 +322,15 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.SUBMARINE]: { width: 22, height: 12, score: 150, color: '#0ea5e9' },
   [EntityType.BOAT]: { width: 16, height: 12, score: 80, color: '#ef4444' },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
+  [EntityType.FIGHTER]: { width: 18, height: 16, score: 250, color: '#eab308' },
   [EntityType.BOMBER]: { width: 28, height: 20, score: 250, color: '#1e3a8a' },
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
   [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
   [EntityType.RADAR]: { width: 14, height: 14, score: 200, color: '#a3a3a3', ground: true },
-  [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, 
+  [EntityType.FUEL]: { width: 16, height: 25, score: 80, color: '#d946ef' }, 
   [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
   [EntityType.ROCK]: { width: 20, height: 16, score: 0, color: '#525252', obstacle: true },
+  [EntityType.BRIDGE]: { width: 320, height: 24, score: 500, color: '#fbbf24' },
   // Ground Scenery
   [EntityType.HOUSE]: { width: 20, height: 16, score: 50, color: '#eab308', ground: true },
   [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
@@ -330,6 +353,7 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.ITEM_SHIELD]: { width: 16, height: 16, score: 100, color: '#22d3ee' },
   [EntityType.ITEM_REGEN]: { width: 16, height: 16, score: 100, color: '#4ade80' },
   [EntityType.ITEM_SPEED]: { width: 16, height: 16, score: 100, color: '#3b82f6' },
+  [EntityType.ITEM_LIFE]: { width: 16, height: 16, score: 500, color: '#f43f5e' },
 };
 
 interface LevelConfig {
@@ -342,22 +366,45 @@ const LEVEL_CONFIGS: LevelConfig[] = [
   { // Level 1: Day
     colors: { bg: '#4d7c0f', water: '#3b82f6', earth: '#a16207', bridge: '#fbbf24' },
     spawnRate: 0.15,
-    pool: { [EntityType.HELICOPTER]: 25, [EntityType.SHIP]: 25, [EntityType.BOAT]: 20, [EntityType.SUBMARINE]: 10, [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 2 }
+    pool: { 
+      [EntityType.HELICOPTER]: 25, [EntityType.SHIP]: 20, [EntityType.BOAT]: 15, 
+      [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 5, [EntityType.FUEL]: 30, 
+      [EntityType.ROCK]: 15, [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, 
+      [EntityType.ITEM_SPEED]: 2, [EntityType.BRIDGE]: 3 
+    }
   },
   { // Level 2: Sunset
     colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
     spawnRate: 0.18,
-    pool: { [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 25, [EntityType.ITEM_SPREAD]: 3, [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3 }
+    pool: { 
+      [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, 
+      [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, 
+      [EntityType.ROCK]: 20, [EntityType.FIGHTER]: 10, [EntityType.ITEM_SPREAD]: 3, 
+      [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3,
+      [EntityType.BRIDGE]: 4, [EntityType.ITEM_LIFE]: 1
+    }
   },
   { // Level 3: Night
     colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
     spawnRate: 0.20,
-    pool: { [EntityType.JET]: 30, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3 }
+    pool: { 
+      [EntityType.JET]: 25, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, 
+      [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FIGHTER]: 15,
+      [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, 
+      [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 4,
+      [EntityType.ITEM_LIFE]: 1
+    }
   },
   { // Level 4+: Alien/Toxic
     colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
     spawnRate: 0.25,
-    pool: { [EntityType.JET]: 25, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, [EntityType.HELICOPTER]: 15, [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3 }
+    pool: { 
+      [EntityType.JET]: 20, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, 
+      [EntityType.HELICOPTER]: 10, [EntityType.FIGHTER]: 20, [EntityType.SUBMARINE]: 15, 
+      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, 
+      [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3, 
+      [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 5, [EntityType.ITEM_LIFE]: 1
+    }
   }
 ];
 
@@ -550,6 +597,11 @@ class SoundEngine {
     this.playTone(600, 'sine', 0.1, 0.1, 200); 
     setTimeout(() => this.playTone(800, 'sine', 0.1, 0.1, 200), 100);
   }
+  oneUp() {
+    this.playTone(400, 'sine', 0.1, 0.1, 300);
+    setTimeout(() => this.playTone(600, 'sine', 0.2, 0.1, 300), 150);
+    setTimeout(() => this.playTone(1000, 'sine', 0.3, 0.2, 400), 300);
+  }
   multiplierUp() {
     this.playTone(400, 'square', 0.1, 0.05, 200);
     setTimeout(() => this.playTone(600, 'square', 0.1, 0.05, 200), 100);
@@ -654,10 +706,11 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       const r = Math.random();
       let type = EntityType.TREE;
       
-      // Hostile Ground Units
-      if (state.level > 1 && r < 0.25) {
-           if (Math.random() > 0.6) type = EntityType.TANK;
-           else if (Math.random() > 0.5) type = EntityType.TURRET;
+      // Hostile Ground Units (Available from Level 1 now)
+      if (r < 0.20) {
+           const roll = Math.random();
+           if (roll > 0.6) type = EntityType.TANK;
+           else if (roll > 0.5) type = EntityType.TURRET;
            else type = EntityType.RADAR;
       } else {
            // Scenery Mix
@@ -680,17 +733,28 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
       const def = SPAWN_REGISTRY[type]!;
       let x = 0;
+      const hugWater = Math.random() < 0.4; // 40% chance to spawn right at edge
 
       if (side === 'left') {
-          const maxX = limitX - def.width - 4; 
+          const maxX = limitX - def.width; 
           const minX = 4;
-          if (maxX < minX) return; 
-          x = minX + Math.random() * (maxX - minX);
+          if (maxX < minX) return;
+          
+          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE].includes(type)) {
+             x = maxX; // Place exactly at limit
+          } else {
+             x = minX + Math.random() * (maxX - minX);
+          }
       } else {
-          const minX = limitX + 4;
+          const minX = limitX;
           const maxX = CANVAS_WIDTH - def.width - 4;
           if (maxX < minX) return;
-          x = minX + Math.random() * (maxX - minX);
+          
+          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE].includes(type)) {
+             x = minX; // Place exactly at limit
+          } else {
+             x = minX + Math.random() * (maxX - minX);
+          }
       }
 
       let vx = 0;
@@ -729,6 +793,16 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             r -= v;
         }
     }
+    
+    if (type === EntityType.BRIDGE) {
+        state.entities.push({
+            id: Math.random(), type: EntityType.BRIDGE,
+            x: CANVAS_WIDTH / 2, y, // Center x, but width covers screen
+            width: CANVAS_WIDTH, height: 24,
+            vx: 0, vy: 0, active: true, frame: 0, scoreValue: 500
+        });
+        return;
+    }
 
     if (type === EntityType.FUEL) state.distanceSinceLastFuel = 0;
 
@@ -742,6 +816,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     let vx = 0;
     if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
     if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
+    if (type === EntityType.FIGHTER) vx = (Math.random() > 0.5 ? 1 : -1) * (80 + state.level * 15);
     if (type === EntityType.BOMBER) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
     if (type === EntityType.SHIP || type === EntityType.DESTROYER) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
     if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
@@ -953,7 +1028,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         }
 
         // Bounds Check
-        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE, EntityType.DESTROYER].includes(ent.type)) {
+        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE, EntityType.DESTROYER, EntityType.JET, EntityType.FIGHTER].includes(ent.type)) {
             const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
@@ -973,18 +1048,19 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                 state.player.fuel = Math.min(100, state.player.fuel + 40 * dt);
                 if (Math.random() > 0.8) soundRef.current?.refuel();
                 if (state.player.multiplier > 1) { state.player.multiplier = 1; state.multiplierDistance = 0; }
-            } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED].includes(ent.type)) {
+            } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED, EntityType.ITEM_LIFE].includes(ent.type)) {
                 ent.active = false;
-                soundRef.current?.powerUp();
                 
-                if (ent.type === EntityType.ITEM_SPREAD) state.player.upgrades.spread = true;
-                if (ent.type === EntityType.ITEM_RAPID) state.player.upgrades.rapid = true;
-                if (ent.type === EntityType.ITEM_SPEED) state.player.upgrades.speed = true;
-                if (ent.type === EntityType.ITEM_REGEN) state.player.fuel = 100; 
-                if (ent.type === EntityType.ITEM_SHIELD) state.player.invulnerableTimer = 10; 
+                if (ent.type === EntityType.ITEM_SPREAD) { state.player.upgrades.spread = true; soundRef.current?.powerUp(); }
+                if (ent.type === EntityType.ITEM_RAPID) { state.player.upgrades.rapid = true; soundRef.current?.powerUp(); }
+                if (ent.type === EntityType.ITEM_SPEED) { state.player.upgrades.speed = true; soundRef.current?.powerUp(); }
+                if (ent.type === EntityType.ITEM_REGEN) { state.player.fuel = 100; soundRef.current?.powerUp(); }
+                if (ent.type === EntityType.ITEM_SHIELD) { state.player.invulnerableTimer = 10; soundRef.current?.powerUp(); }
+                if (ent.type === EntityType.ITEM_LIFE) { state.player.lives++; soundRef.current?.oneUp(); }
+
             } else {
                 if (state.player.invulnerableTimer > 0) {
-                   if (ent.type !== EntityType.BOSS) {
+                   if (ent.type !== EntityType.BOSS && ent.type !== EntityType.BRIDGE) {
                        ent.active = false; 
                        createExplosion(ent.x, entScreenY, SPAWN_REGISTRY[ent.type]?.color || '#fff');
                    }
@@ -1035,17 +1111,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                              
                              state.player.score += (target.scoreValue || 2000) * state.player.multiplier;
                              state.bossActive = false;
+                             state.player.lives++; // Boss reward
+                             soundRef.current?.oneUp();
                              
                              // --- SAFE TRANSITION LOGIC ---
-                             // Recalculate river bounds at player's current world Y to find the new center
-                             // because bossActive false will make getRiverStats return noise-based river
                              const playerWorldY = state.cameraY + (CANVAS_HEIGHT - state.player.y);
                              const newRiverStats = getRiverStats(playerWorldY);
                              
-                             // Teleport player to safe center
                              state.player.x = newRiverStats.center;
                              state.player.vx = 0;
-                             // Grant shield to allow orientation
                              state.player.invulnerableTimer = 2.0;
 
                              soundRef.current?.stopBossMusic();
@@ -1058,7 +1132,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                                 vx: 0, vy: 0, active: true, frame: 0, scoreValue: 500
                              });
                          }
-                     } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED].includes(target.type)) {
+                     } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED, EntityType.ITEM_LIFE].includes(target.type)) {
                          // Safe
                      } else {
                          target.active = false;
@@ -1193,7 +1267,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
               ctx.fillRect(0, screenY - 2, CANVAS_WIDTH, 4);
               ctx.fillStyle = '#fbbf24';
               ctx.font = '10px monospace';
-              ctx.fillText(`BRIDGE ${state.level}`, CANVAS_WIDTH/2 - 20, screenY - 15);
+              ctx.fillText(`BRIDGE`, CANVAS_WIDTH/2 - 20, screenY - 15);
           } else if (ent.type === EntityType.BULLET) {
               ctx.fillStyle = '#fbbf24';
               ctx.fillRect(ent.x - 2, screenY - 4, 4, 8);
@@ -1205,7 +1279,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
              drawSprite(ctx, bossCfg.sprite, ent.x, screenY, 4, bossCfg.color);
           } else {
               const def = SPAWN_REGISTRY[ent.type] || { color: '#fff' };
-              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER;
+              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER || ent.type === EntityType.FIGHTER;
               if (isAir) drawSprite(ctx, ent.type, ent.x + 10, screenY + 10, 2.5, 'rgba(0,0,0,0.3)');
               drawSprite(ctx, ent.type, ent.x, screenY, 2.5, def.color);
               if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT || ent.type === EntityType.SUBMARINE || ent.type === EntityType.DESTROYER) {

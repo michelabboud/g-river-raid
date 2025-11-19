@@ -20,6 +20,7 @@ export enum EntityType {
   ITEM_SHIELD = 'ITEM_SHIELD',
   ITEM_REGEN = 'ITEM_REGEN',
   ITEM_SPEED = 'ITEM_SPEED',
+  ITEM_LIFE = 'ITEM_LIFE',
   BOSS = 'BOSS',
   BOSS_BULLET = 'BOSS_BULLET',
   BASE = 'BASE',
@@ -37,7 +38,8 @@ export enum EntityType {
   SUBMARINE = 'SUBMARINE',
   RADAR = 'RADAR',
   BOMBER = 'BOMBER',
-  DESTROYER = 'DESTROYER'
+  DESTROYER = 'DESTROYER',
+  FIGHTER = 'FIGHTER'
 }
 
 export interface Entity {
