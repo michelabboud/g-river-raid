@@ -49,6 +49,15 @@ const SPRITES: Record<string, number[][]> = {
     [0,1,1,1,1,1,1,1,0],
     [0,0,1,1,1,1,1,0,0]
   ],
+  DESTROYER: [
+    [0,0,0,0,1,0,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,0,1,0,1,0,1,0]
+  ],
   SUBMARINE: [
     [0,0,0,0,1,0,0,0],
     [0,0,0,1,1,1,0,0],
@@ -70,6 +79,14 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,0,1,0,1,1],
     [1,1,0,1,0,1,1],
     [1,0,0,1,0,0,1]
+  ],
+  BOMBER: [
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,0,1,0,1,1,1],
+    [1,1,1,0,1,0,1,1,1],
+    [1,0,0,0,1,0,0,0,1]
   ],
   TANK: [
     [0,0,1,0,0],
@@ -280,9 +297,11 @@ interface EntityDef {
 const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.HELICOPTER]: { width: 20, height: 16, score: 100, color: '#ef4444' },
   [EntityType.SHIP]: { width: 24, height: 14, score: 60, color: '#ef4444' },
+  [EntityType.DESTROYER]: { width: 30, height: 18, score: 120, color: '#64748b' },
   [EntityType.SUBMARINE]: { width: 22, height: 12, score: 150, color: '#0ea5e9' },
   [EntityType.BOAT]: { width: 16, height: 12, score: 80, color: '#ef4444' },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
+  [EntityType.BOMBER]: { width: 28, height: 20, score: 250, color: '#1e3a8a' },
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
   [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
   [EntityType.RADAR]: { width: 14, height: 14, score: 200, color: '#a3a3a3', ground: true },
@@ -328,17 +347,17 @@ const LEVEL_CONFIGS: LevelConfig[] = [
   { // Level 2: Sunset
     colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
     spawnRate: 0.18,
-    pool: { [EntityType.HELICOPTER]: 20, [EntityType.JET]: 25, [EntityType.SHIP]: 15, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 25, [EntityType.ITEM_SPREAD]: 3, [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3 }
+    pool: { [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 25, [EntityType.ITEM_SPREAD]: 3, [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3 }
   },
   { // Level 3: Night
     colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
     spawnRate: 0.20,
-    pool: { [EntityType.JET]: 35, [EntityType.MINE]: 35, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3 }
+    pool: { [EntityType.JET]: 30, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3 }
   },
   { // Level 4+: Alien/Toxic
     colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
     spawnRate: 0.25,
-    pool: { [EntityType.JET]: 35, [EntityType.MINE]: 35, [EntityType.HELICOPTER]: 25, [EntityType.SUBMARINE]: 20, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3 }
+    pool: { [EntityType.JET]: 25, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, [EntityType.HELICOPTER]: 15, [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3 }
   }
 ];
 
@@ -723,7 +742,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     let vx = 0;
     if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
     if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
-    if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
+    if (type === EntityType.BOMBER) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
+    if (type === EntityType.SHIP || type === EntityType.DESTROYER) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
     if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
     if (type === EntityType.SUBMARINE) vx = (Math.random() > 0.5 ? 1 : -1) * 10;
 
@@ -841,14 +861,6 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     state.player.x += state.player.vx * dt;
 
     // --- FUEL LOGIC ---
-    // Only consume fuel if not regenerating
-    // Note: ITEM_REGEN logic was removed from upgrades object in favor of specific item check if we want it unique,
-    // but user asked for upgrades. Let's assume Regen is a temporary state or upgrade? 
-    // In previous code it was activePowerUp. I'll assume regen is not a permanent upgrade, but let's map it to `upgrades` if needed or just keep it temporary.
-    // Actually, let's just consume fuel normally unless we have a special state. 
-    // I'll skip regen for now or treat it as just fuel refill + upgrade?
-    // Let's stick to standard consumption for now to keep it simple, or re-add regen logic if needed.
-    // I will assume REGEN item just refuels fully now.
     state.player.fuel -= FUEL_CONSUMPTION * dt;
 
     // --- SHOOTING ---
@@ -916,9 +928,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             // Boss Shooting
             if (Math.random() < (dt * 1000) / cfg.shootRate) {
                  soundRef.current?.bossShoot();
-                 // Calculate vector to player for homing, but cap speed
                  const dx = state.player.x - ent.x;
-                 const dy = -300; // Initial bias down
+                 const dy = -300; 
                  const dist = Math.sqrt(dx*dx + dy*dy);
                  const dirX = dx / dist;
                  const dirY = dy / dist;
@@ -942,7 +953,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         }
 
         // Bounds Check
-        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE].includes(ent.type)) {
+        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE, EntityType.DESTROYER].includes(ent.type)) {
             const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
@@ -969,11 +980,10 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                 if (ent.type === EntityType.ITEM_SPREAD) state.player.upgrades.spread = true;
                 if (ent.type === EntityType.ITEM_RAPID) state.player.upgrades.rapid = true;
                 if (ent.type === EntityType.ITEM_SPEED) state.player.upgrades.speed = true;
-                if (ent.type === EntityType.ITEM_REGEN) state.player.fuel = 100; // Instant full fuel
-                if (ent.type === EntityType.ITEM_SHIELD) state.player.invulnerableTimer = 10; // Long shield
+                if (ent.type === EntityType.ITEM_REGEN) state.player.fuel = 100; 
+                if (ent.type === EntityType.ITEM_SHIELD) state.player.invulnerableTimer = 10; 
             } else {
                 if (state.player.invulnerableTimer > 0) {
-                   // Bounce or ignore? Let's destroy small enemies if we hit them with shield, but mostly just ignore damage
                    if (ent.type !== EntityType.BOSS) {
                        ent.active = false; 
                        createExplosion(ent.x, entScreenY, SPAWN_REGISTRY[ent.type]?.color || '#fff');
@@ -1025,6 +1035,19 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                              
                              state.player.score += (target.scoreValue || 2000) * state.player.multiplier;
                              state.bossActive = false;
+                             
+                             // --- SAFE TRANSITION LOGIC ---
+                             // Recalculate river bounds at player's current world Y to find the new center
+                             // because bossActive false will make getRiverStats return noise-based river
+                             const playerWorldY = state.cameraY + (CANVAS_HEIGHT - state.player.y);
+                             const newRiverStats = getRiverStats(playerWorldY);
+                             
+                             // Teleport player to safe center
+                             state.player.x = newRiverStats.center;
+                             state.player.vx = 0;
+                             // Grant shield to allow orientation
+                             state.player.invulnerableTimer = 2.0;
+
                              soundRef.current?.stopBossMusic();
                              state.distanceInLevel = 0;
                              state.level++;
@@ -1084,7 +1107,6 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       createExplosion(state.player.x, state.player.y, '#fbbf24');
       state.player.isDead = true;
       state.player.lives--;
-      // Reset upgrades on death
       state.player.upgrades = { spread: false, rapid: false, speed: false };
       state.player.multiplier = 1;
       state.multiplierDistance = 0;
@@ -1182,10 +1204,10 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
              drawSprite(ctx, bossCfg.sprite, ent.x, screenY, 4, bossCfg.color);
           } else {
               const def = SPAWN_REGISTRY[ent.type] || { color: '#fff' };
-              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER;
+              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER;
               if (isAir) drawSprite(ctx, ent.type, ent.x + 10, screenY + 10, 2.5, 'rgba(0,0,0,0.3)');
               drawSprite(ctx, ent.type, ent.x, screenY, 2.5, def.color);
-              if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT || ent.type === EntityType.SUBMARINE) {
+              if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT || ent.type === EntityType.SUBMARINE || ent.type === EntityType.DESTROYER) {
                   ctx.fillStyle = 'rgba(255,255,255,0.3)';
                   ctx.fillRect(ent.x - 4, screenY + 10, 8, 4);
               }
@@ -1195,26 +1217,16 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       if (!state.player.isDead) {
           // Render Spawn Shield / Invulnerability Blink
           if (state.player.invulnerableTimer > 0) {
-             if (Math.floor(Date.now() / 50) % 2 === 0) {
-                 // Skip rendering to create blink effect
-             } else {
-                 drawSprite(ctx, 'PLAYER', state.player.x, state.player.y, 2.5, '#eab308');
-                 // Draw Shield Circle
-                 ctx.beginPath();
-                 ctx.arc(state.player.x, state.player.y, 25, 0, Math.PI * 2);
-                 ctx.strokeStyle = '#fff'; 
-                 ctx.lineWidth = 2;
-                 ctx.stroke();
-             }
-          } else if (state.player.invulnerableTimer > 5) { // This is for ITEM_SHIELD which sets it to 10
-             // Already handled in blink logic since timer > 0, but let's keep the cyan shield effect if it was specific to the item
-             // Actually I unified invulnerableTimer. Let's make ITEM_SHIELD visually distinct from Spawn Protection?
-             // For now simpler is better.
+             // Bubble Shield Visuals
              ctx.beginPath();
-             ctx.arc(state.player.x, state.player.y, 25, 0, Math.PI * 2);
-             ctx.strokeStyle = `rgba(34, 211, 238, ${0.5 + Math.sin(Date.now() * 0.01) * 0.3})`; 
-             ctx.lineWidth = 3;
+             ctx.arc(state.player.x, state.player.y, 30, 0, Math.PI * 2);
+             ctx.fillStyle = `rgba(6, 182, 212, ${0.2 + Math.sin(Date.now() * 0.01) * 0.1})`; 
+             ctx.fill();
+             ctx.lineWidth = 2;
+             ctx.strokeStyle = `rgba(165, 243, 252, ${0.6 + Math.sin(Date.now() * 0.015) * 0.4})`;
              ctx.stroke();
+             
+             // Player still visible inside
              drawSprite(ctx, 'PLAYER', state.player.x, state.player.y, 2.5, '#eab308');
           } else {
              drawSprite(ctx, 'PLAYER', state.player.x + 8, state.player.y + 8, 2.5, 'rgba(0,0,0,0.4)');
