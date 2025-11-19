@@ -39,7 +39,12 @@ export enum EntityType {
   RADAR = 'RADAR',
   BOMBER = 'BOMBER',
   DESTROYER = 'DESTROYER',
-  FIGHTER = 'FIGHTER'
+  FIGHTER = 'FIGHTER',
+  BUOY = 'BUOY',
+  WRECK = 'WRECK',
+  PALM = 'PALM',
+  BUNKER = 'BUNKER',
+  PIER = 'PIER'
 }
 
 export interface Entity {

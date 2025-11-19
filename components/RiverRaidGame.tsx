@@ -72,6 +72,20 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [0,1,1,1,0]
   ],
+  WRECK: [
+    [0,0,1,0,0,1,0],
+    [0,1,0,1,0,0,1],
+    [1,0,0,0,1,0,0],
+    [1,0,1,0,1,1,1],
+    [0,1,1,1,0,1,0]
+  ],
+  BUOY: [
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [0,1,0,1,0]
+  ],
   JET: [
     [0,0,0,1,0,0,0],
     [0,0,1,1,1,0,0],
@@ -118,6 +132,12 @@ const SPRITES: Record<string, number[][]> = {
     [0,0,1,0,0],
     [1,1,1,1,1]
   ],
+  BUNKER: [
+    [0,1,1,1,1,0],
+    [1,1,1,1,1,1],
+    [1,0,0,0,0,1],
+    [1,1,1,1,1,1]
+  ],
   HOUSE: [
     [0,0,1,1,0,0],
     [0,1,1,1,1,0],
@@ -131,6 +151,13 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [0,1,1,1,0],
     [0,0,1,0,0]
+  ],
+  PALM: [
+    [0,1,0,1,0,1,0],
+    [0,0,1,1,1,0,0],
+    [0,0,0,1,0,0,0],
+    [0,0,0,1,0,0,0],
+    [0,1,1,1,1,1,0]
   ],
   BASE: [
     [0,0,1,1,0,0],
@@ -159,6 +186,12 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,0,0,1,1],
     [1,1,0,0,1,1],
     [1,1,1,1,1,1]
+  ],
+  PIER: [
+    [1,1,1,1,1,1],
+    [1,0,1,0,1,0],
+    [1,0,1,0,1,0],
+    [1,0,1,0,1,0]
   ],
   CRATE: [
     [1,1,1,1],
@@ -321,6 +354,8 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.DESTROYER]: { width: 30, height: 18, score: 120, color: '#64748b' },
   [EntityType.SUBMARINE]: { width: 22, height: 12, score: 150, color: '#0ea5e9' },
   [EntityType.BOAT]: { width: 16, height: 12, score: 80, color: '#ef4444' },
+  [EntityType.WRECK]: { width: 22, height: 16, score: 0, color: '#78350f', obstacle: true },
+  [EntityType.BUOY]: { width: 12, height: 14, score: 0, color: '#ef4444', obstacle: true },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
   [EntityType.FIGHTER]: { width: 18, height: 16, score: 250, color: '#eab308' },
   [EntityType.BOMBER]: { width: 28, height: 20, score: 250, color: '#1e3a8a' },
@@ -334,8 +369,11 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   // Ground Scenery
   [EntityType.HOUSE]: { width: 20, height: 16, score: 50, color: '#eab308', ground: true },
   [EntityType.TREE]: { width: 16, height: 18, score: 0, color: '#166534', ground: true },
+  [EntityType.PALM]: { width: 18, height: 20, score: 0, color: '#65a30d', ground: true },
   [EntityType.BASE]: { width: 24, height: 20, score: 100, color: '#3f3f46', ground: true },
   [EntityType.STABLE]: { width: 22, height: 18, score: 50, color: '#78350f', ground: true },
+  [EntityType.BUNKER]: { width: 22, height: 16, score: 120, color: '#525252', ground: true },
+  [EntityType.PIER]: { width: 20, height: 14, score: 40, color: '#a16207', ground: true },
   [EntityType.ANIMAL]: { width: 12, height: 10, score: 10, color: '#e5e7eb', ground: true },
   [EntityType.SHACK]: { width: 18, height: 14, score: 30, color: '#92400e', ground: true },
   [EntityType.CRATE]: { width: 12, height: 12, score: 20, color: '#b45309', ground: true },
@@ -369,7 +407,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.HELICOPTER]: 25, [EntityType.SHIP]: 20, [EntityType.BOAT]: 15, 
       [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 5, [EntityType.FUEL]: 30, 
-      [EntityType.ROCK]: 15, [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, 
+      [EntityType.ROCK]: 10, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5,
+      [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, 
       [EntityType.ITEM_SPEED]: 2, [EntityType.BRIDGE]: 3 
     }
   },
@@ -379,7 +418,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, 
       [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, 
-      [EntityType.ROCK]: 20, [EntityType.FIGHTER]: 10, [EntityType.ITEM_SPREAD]: 3, 
+      [EntityType.ROCK]: 15, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5, 
+      [EntityType.FIGHTER]: 10, [EntityType.ITEM_SPREAD]: 3, 
       [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3,
       [EntityType.BRIDGE]: 4, [EntityType.ITEM_LIFE]: 1
     }
@@ -390,9 +430,9 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.JET]: 25, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, 
       [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FIGHTER]: 15,
-      [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, [EntityType.ITEM_RAPID]: 3, 
-      [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 4,
-      [EntityType.ITEM_LIFE]: 1
+      [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, [EntityType.BUOY]: 10,
+      [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3, 
+      [EntityType.BRIDGE]: 4, [EntityType.ITEM_LIFE]: 1
     }
   },
   { // Level 4+: Alien/Toxic
@@ -401,9 +441,10 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.JET]: 20, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, 
       [EntityType.HELICOPTER]: 10, [EntityType.FIGHTER]: 20, [EntityType.SUBMARINE]: 15, 
-      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 30, 
-      [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, [EntityType.ITEM_REGEN]: 3, 
-      [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 5, [EntityType.ITEM_LIFE]: 1
+      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, 
+      [EntityType.WRECK]: 10, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, 
+      [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 5, 
+      [EntityType.ITEM_LIFE]: 1
     }
   }
 ];
@@ -706,21 +747,24 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       const r = Math.random();
       let type = EntityType.TREE;
       
-      // Hostile Ground Units (Available from Level 1 now)
+      // Hostile Ground Units
       if (r < 0.20) {
            const roll = Math.random();
            if (roll > 0.6) type = EntityType.TANK;
            else if (roll > 0.5) type = EntityType.TURRET;
            else type = EntityType.RADAR;
       } else {
-           // Scenery Mix
+           // Scenery Mix (Expanded)
            const s = Math.random();
-           if (s < 0.20) type = EntityType.TREE;
-           else if (s < 0.30) type = EntityType.HOUSE;
-           else if (s < 0.40) type = EntityType.BASE;
-           else if (s < 0.45) type = EntityType.STABLE;
-           else if (s < 0.50) type = EntityType.SHACK;
-           else if (s < 0.60) type = EntityType.CRATE;
+           if (s < 0.15) type = EntityType.TREE;
+           else if (s < 0.25) type = EntityType.PALM;
+           else if (s < 0.35) type = EntityType.HOUSE;
+           else if (s < 0.40) type = EntityType.BUNKER;
+           else if (s < 0.45) type = EntityType.BASE;
+           else if (s < 0.50) type = EntityType.STABLE;
+           else if (s < 0.55) type = EntityType.SHACK;
+           else if (s < 0.60) type = EntityType.PIER;
+           else if (s < 0.65) type = EntityType.CRATE;
            else if (s < 0.70) type = EntityType.HERD;
            else if (s < 0.75) type = EntityType.SILO;
            else if (s < 0.80) type = EntityType.RUIN;
@@ -740,7 +784,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           const minX = 4;
           if (maxX < minX) return;
           
-          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE].includes(type)) {
+          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE, EntityType.PIER, EntityType.BUNKER].includes(type)) {
              x = maxX; // Place exactly at limit
           } else {
              x = minX + Math.random() * (maxX - minX);
@@ -750,7 +794,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           const maxX = CANVAS_WIDTH - def.width - 4;
           if (maxX < minX) return;
           
-          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE].includes(type)) {
+          if (hugWater && [EntityType.HOUSE, EntityType.SHACK, EntityType.BASE, EntityType.PIER, EntityType.BUNKER].includes(type)) {
              x = minX; // Place exactly at limit
           } else {
              x = minX + Math.random() * (maxX - minX);
