@@ -308,6 +308,9 @@ class SoundEngine {
   gainNode: GainNode | null = null;
   engineOsc: OscillatorNode | null = null;
   engineGain: GainNode | null = null;
+  
+  bossMusicTimer: number | null = null;
+  isBossMusicPlaying: boolean = false;
 
   constructor() {
     try {
@@ -401,6 +404,44 @@ class SoundEngine {
     noise.start();
     noise.stop(t + duration);
   }
+  
+  startBossMusic() {
+    if (this.isBossMusicPlaying || !this.ctx || this.ctx.state === 'suspended') return;
+    this.isBossMusicPlaying = true;
+
+    let step = 0;
+    const playSeq = () => {
+        if (!this.isBossMusicPlaying) return;
+        
+        // Menacing fast bass riff
+        const notes = [
+            82.41, 82.41, 98.00, 82.41, 110.00, 103.83, // E2, E2, G2, E2, A2, G#2
+            82.41, 82.41, 123.47, 82.41, 116.54, 110.00  // E2, E2, B2, E2, A#2, A2
+        ];
+        
+        const freq = notes[step % notes.length];
+        // Main bass
+        this.playTone(freq, 'sawtooth', 0.12, 0.15);
+        // Sub
+        this.playTone(freq / 2, 'square', 0.12, 0.2);
+        // High tension ping occasionally
+        if (step % 8 === 0) {
+             this.playTone(freq * 4, 'sine', 0.1, 0.05);
+        }
+
+        step++;
+        this.bossMusicTimer = window.setTimeout(playSeq, 140); // Fast tempo
+    };
+    playSeq();
+  }
+
+  stopBossMusic() {
+    this.isBossMusicPlaying = false;
+    if (this.bossMusicTimer) {
+        window.clearTimeout(this.bossMusicTimer);
+        this.bossMusicTimer = null;
+    }
+  }
 
   shoot() { this.playTone(900, 'square', 0.1, 0.1, -400); }
   bossShoot() { this.playTone(200, 'sawtooth', 0.3, 0.2, -50); }
@@ -485,6 +526,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           if (soundRef.current?.engineOsc) {
               try { soundRef.current.engineOsc.stop(); } catch (e) {}
           }
+          soundRef.current?.stopBossMusic();
       };
   }, []);
 
@@ -640,6 +682,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                 scoreValue: 2000
             });
             state.bossActive = true;
+            soundRef.current?.startBossMusic();
             return; 
         }
     }
@@ -906,6 +949,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                              
                              state.player.score += (target.scoreValue || 2000) * state.player.multiplier;
                              state.bossActive = false;
+                             soundRef.current?.stopBossMusic();
                              state.distanceInLevel = 0;
                              state.level++;
                              
@@ -961,6 +1005,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   const die = () => {
       if (state.player.isDead) return;
+      soundRef.current?.stopBossMusic();
       createExplosion(state.player.x, state.player.y, '#fbbf24');
       state.player.isDead = true;
       state.player.lives--;
