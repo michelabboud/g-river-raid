@@ -150,6 +150,23 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1,1,1],
     [1,0,1,0,1,0,1]
   ],
+  LOGS: [
+    [0,1,1,0],
+    [1,1,1,1],
+    [1,1,1,1]
+  ],
+  SIGN: [
+    [1,1,1],
+    [1,1,1],
+    [0,1,0],
+    [0,1,0]
+  ],
+  BOULDER: [
+    [0,1,1,0],
+    [1,1,1,1],
+    [1,1,1,1],
+    [0,1,1,1]
+  ],
   FUEL: [
     [0,1,1,1,0],
     [1,1,1,1,1],
@@ -261,6 +278,9 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.SILO]: { width: 12, height: 20, score: 40, color: '#a3a3a3', ground: true },
   [EntityType.RUIN]: { width: 20, height: 16, score: 20, color: '#78716c', ground: true },
   [EntityType.FENCE]: { width: 24, height: 10, score: 10, color: '#9a3412', ground: true },
+  [EntityType.LOGS]: { width: 14, height: 10, score: 10, color: '#713f12', ground: true },
+  [EntityType.SIGN]: { width: 10, height: 14, score: 5, color: '#e5e5e5', ground: true },
+  [EntityType.BOULDER]: { width: 14, height: 14, score: 10, color: '#525252', ground: true },
 
   // Powerups
   [EntityType.ITEM_SPREAD]: { width: 16, height: 16, score: 100, color: '#fbbf24' },
@@ -580,23 +600,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
   const spawnBankEntity = (y: number, side: 'left' | 'right', limitX: number) => {
       const state = gameState.current;
       // Bank Logic: Always spawn scenery, sometimes spawn enemy
-      // Left side spans 0 to limitX
-      // Right side spans limitX to CANVAS_WIDTH
       
-      let xMin = 0, xMax = 0;
-      if (side === 'left') {
-          xMin = 0;
-          xMax = limitX - 10;
-      } else {
-          xMin = limitX + 10;
-          xMax = CANVAS_WIDTH;
-      }
-
-      if (xMax - xMin < 10) return; // Too narrow
-
-      const x = xMin + Math.random() * (xMax - xMin);
-      
-      // Probabilities
       const r = Math.random();
       let type = EntityType.TREE;
       
@@ -604,25 +608,41 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       if (state.level > 1 && r < 0.2) {
            type = Math.random() > 0.5 ? EntityType.TANK : EntityType.TURRET;
       } else {
-           // Scenery Mix - Expanded with more variety
+           // Scenery Mix
            const s = Math.random();
            if (s < 0.20) type = EntityType.TREE;
-           else if (s < 0.35) type = EntityType.HOUSE;
-           else if (s < 0.45) type = EntityType.BASE;
-           else if (s < 0.55) type = EntityType.STABLE;
-           else if (s < 0.65) type = EntityType.SHACK;
-           else if (s < 0.75) type = EntityType.CRATE;
-           else if (s < 0.80) type = EntityType.HERD;
-           else if (s < 0.85) type = EntityType.SILO;
-           else if (s < 0.90) type = EntityType.RUIN;
-           else if (s < 0.95) type = EntityType.FENCE;
+           else if (s < 0.30) type = EntityType.HOUSE;
+           else if (s < 0.40) type = EntityType.BASE;
+           else if (s < 0.45) type = EntityType.STABLE;
+           else if (s < 0.50) type = EntityType.SHACK;
+           else if (s < 0.60) type = EntityType.CRATE;
+           else if (s < 0.70) type = EntityType.HERD;
+           else if (s < 0.75) type = EntityType.SILO;
+           else if (s < 0.80) type = EntityType.RUIN;
+           else if (s < 0.85) type = EntityType.FENCE;
+           else if (s < 0.90) type = EntityType.LOGS;
+           else if (s < 0.95) type = EntityType.SIGN;
+           else if (s < 0.97) type = EntityType.BOULDER;
            else type = EntityType.ANIMAL;
       }
 
       const def = SPAWN_REGISTRY[type]!;
-      // Ensure completely off river
-      if (side === 'left' && x + def.width > limitX) return;
-      if (side === 'right' && x < limitX) return;
+      let x = 0;
+
+      // Determine position strictly within bank bounds
+      if (side === 'left') {
+          // Available space: 0 to limitX
+          const maxX = limitX - def.width - 4; // Buffer
+          const minX = 4;
+          if (maxX < minX) return; // Bank too narrow
+          x = minX + Math.random() * (maxX - minX);
+      } else {
+          // Available space: limitX to CANVAS_WIDTH
+          const minX = limitX + 4;
+          const maxX = CANVAS_WIDTH - def.width - 4;
+          if (maxX < minX) return; // Bank too narrow
+          x = minX + Math.random() * (maxX - minX);
+      }
 
       let vx = 0;
       if (type === EntityType.TANK) {
