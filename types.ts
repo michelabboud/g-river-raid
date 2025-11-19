@@ -19,6 +19,7 @@ export enum EntityType {
   ITEM_RAPID = 'ITEM_RAPID',
   ITEM_SHIELD = 'ITEM_SHIELD',
   ITEM_REGEN = 'ITEM_REGEN',
+  ITEM_SPEED = 'ITEM_SPEED',
   BOSS = 'BOSS',
   BOSS_BULLET = 'BOSS_BULLET',
   BASE = 'BASE',
@@ -69,8 +70,12 @@ export interface Player {
   isDead: boolean;
   score: number;
   lives: number;
-  activePowerUp: EntityType | null;
-  powerUpTimer: number;
+  upgrades: {
+    spread: boolean;
+    rapid: boolean;
+    speed: boolean;
+  };
+  invulnerableTimer: number;
   multiplier: number;
   frame: number;
 }
