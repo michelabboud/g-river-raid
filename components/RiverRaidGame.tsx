@@ -13,7 +13,7 @@ const BULLET_SPEED = 600;
 const FUEL_CONSUMPTION = 5.5;
 const RIVER_SEGMENT_HEIGHT = 20;
 const SPAWN_DISTANCE = 700;
-const FUEL_GUARANTEE_DISTANCE = 800; // Ensure fuel appears at least this often
+const FUEL_GUARANTEE_DISTANCE = 400; // Much more frequent fuel
 const POWERUP_DURATION = 10; // Seconds
 const MULTIPLIER_INCREMENT_DISTANCE = 1000; // Distance to travel to increase multiplier
 
@@ -46,6 +46,13 @@ const SPRITES: Record<string, number[][]> = {
     [0,1,1,1,1,1,1,1,0],
     [0,0,1,1,1,1,1,0,0]
   ],
+  BOAT: [
+    [0,0,0,0,0],
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [0,1,1,1,0]
+  ],
   JET: [
     [0,0,0,1,0,0,0],
     [0,0,1,1,1,0,0],
@@ -60,6 +67,13 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [1,1,1,1,1],
     [1,0,1,0,1]
+  ],
+  TURRET: [
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+    [0,1,1,1,0],
+    [1,1,1,1,1],
+    [1,0,0,0,1]
   ],
   HOUSE: [
     [0,0,1,1,0,0],
@@ -136,8 +150,10 @@ interface EntityDef {
 const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.HELICOPTER]: { width: 20, height: 16, score: 100, color: '#ef4444' },
   [EntityType.SHIP]: { width: 24, height: 14, score: 60, color: '#ef4444' },
+  [EntityType.BOAT]: { width: 16, height: 12, score: 80, color: '#ef4444' },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
+  [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
   [EntityType.FUEL]: { width: 16, height: 20, score: 80, color: '#d946ef' }, 
   [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
   [EntityType.HOUSE]: { width: 20, height: 16, score: 0, color: '#eab308', ground: true },
@@ -156,56 +172,61 @@ interface LevelConfig {
 }
 
 const LEVEL_CONFIGS: LevelConfig[] = [
-  { // Level 1: Day - Basic
+  { // Level 1: Day - Crowded river
     colors: { bg: '#4d7c0f', water: '#3b82f6', earth: '#a16207', bridge: '#fbbf24' },
-    spawnRate: 0.04,
-    pool: { 
-      [EntityType.HELICOPTER]: 40, 
-      [EntityType.SHIP]: 40, 
-      [EntityType.FUEL]: 15,
-      [EntityType.HOUSE]: 10,
-      [EntityType.TREE]: 10,
-      [EntityType.ITEM_RAPID]: 1,
-    }
-  },
-  { // Level 2: Sunset - More air, introduce Tanks
-    colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
-    spawnRate: 0.05,
+    spawnRate: 0.15, // High density
     pool: { 
       [EntityType.HELICOPTER]: 30, 
-      [EntityType.JET]: 20, 
-      [EntityType.SHIP]: 20, 
-      [EntityType.TANK]: 15,
-      [EntityType.FUEL]: 15,
-      [EntityType.ROCK]: 10,
-      [EntityType.ITEM_SPREAD]: 2,
-      [EntityType.ITEM_SHIELD]: 1,
-    }
-  },
-  { // Level 3: Night - Mines and Jets
-    colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
-    spawnRate: 0.06,
-    pool: { 
-      [EntityType.JET]: 35, 
-      [EntityType.MINE]: 25, 
-      [EntityType.TANK]: 15,
-      [EntityType.FUEL]: 15,
+      [EntityType.SHIP]: 30,
+      [EntityType.BOAT]: 20,
+      [EntityType.FUEL]: 30, // Frequent fuel
+      [EntityType.HOUSE]: 40, // Lots of scenery
+      [EntityType.TREE]: 40,
       [EntityType.ROCK]: 20,
       [EntityType.ITEM_RAPID]: 2,
+    }
+  },
+  { // Level 2: Sunset - Heavy resistance
+    colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
+    spawnRate: 0.18,
+    pool: { 
+      [EntityType.HELICOPTER]: 25, 
+      [EntityType.JET]: 25, 
+      [EntityType.SHIP]: 20, 
+      [EntityType.TANK]: 25,
+      [EntityType.TURRET]: 20,
+      [EntityType.FUEL]: 30,
+      [EntityType.ROCK]: 25,
+      [EntityType.ITEM_SPREAD]: 3,
       [EntityType.ITEM_SHIELD]: 2,
+    }
+  },
+  { // Level 3: Night - Minefield
+    colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
+    spawnRate: 0.20,
+    pool: { 
+      [EntityType.JET]: 40, 
+      [EntityType.MINE]: 40, 
+      [EntityType.TANK]: 20,
+      [EntityType.TURRET]: 20,
+      [EntityType.FUEL]: 30,
+      [EntityType.ROCK]: 30,
+      [EntityType.ITEM_RAPID]: 3,
+      [EntityType.ITEM_SHIELD]: 3,
     }
   },
   { // Level 4+: Alien/Toxic - Chaos
     colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
-    spawnRate: 0.07,
+    spawnRate: 0.25,
     pool: { 
-      [EntityType.JET]: 30, 
-      [EntityType.MINE]: 30, 
-      [EntityType.HELICOPTER]: 20, 
-      [EntityType.FUEL]: 15,
-      [EntityType.ROCK]: 20,
-      [EntityType.ITEM_SPREAD]: 3,
-      [EntityType.ITEM_RAPID]: 3,
+      [EntityType.JET]: 40, 
+      [EntityType.MINE]: 40, 
+      [EntityType.HELICOPTER]: 30, 
+      [EntityType.TURRET]: 30,
+      [EntityType.FUEL]: 30,
+      [EntityType.ROCK]: 30,
+      [EntityType.ITEM_SPREAD]: 5,
+      [EntityType.ITEM_RAPID]: 5,
     }
   }
 ];
@@ -438,7 +459,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
         if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
         if (type === EntityType.SHIP) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
-        // Powerups are stationary or slow drift? Let's keep them stationary like fuel for now
+        if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
+        // Powerups are stationary or slow drift
     }
 
     state.entities.push({
@@ -601,7 +623,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         }
 
         // Screen Wrapping (Reflected) for simple enemies
-        if (ent.type === EntityType.HELICOPTER || ent.type === EntityType.SHIP) {
+        if (ent.type === EntityType.HELICOPTER || ent.type === EntityType.SHIP || ent.type === EntityType.BOAT) {
             const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
@@ -614,7 +636,8 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         const playerScreenY = state.player.y;
         
         // Player vs Entity
-        if (Math.abs(state.player.x - ent.x) < (state.player.width + ent.width)/2 - 4 &&
+        if (ent.type !== EntityType.BULLET && 
+            Math.abs(state.player.x - ent.x) < (state.player.width + ent.width)/2 - 4 &&
             Math.abs(playerScreenY - entScreenY) < (state.player.height + ent.height)/2 - 4) {
             
             if (ent.type === EntityType.FUEL) {
@@ -824,7 +847,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
               drawSprite(ctx, ent.type, ent.x, screenY, 2.5, def.color);
 
               // Water trail for ships
-              if (ent.type === EntityType.SHIP) {
+              if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT) {
                   ctx.fillStyle = 'rgba(255,255,255,0.3)';
                   ctx.fillRect(ent.x - 4, screenY + 10, 8, 4);
               }

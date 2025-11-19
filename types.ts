@@ -13,6 +13,8 @@ export enum EntityType {
   HOUSE = 'HOUSE',
   TREE = 'TREE',
   ROCK = 'ROCK',
+  TURRET = 'TURRET',
+  BOAT = 'BOAT',
   ITEM_SPREAD = 'ITEM_SPREAD',
   ITEM_RAPID = 'ITEM_RAPID',
   ITEM_SHIELD = 'ITEM_SHIELD'
