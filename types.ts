@@ -26,7 +26,10 @@ export enum EntityType {
   ANIMAL = 'ANIMAL',
   SHACK = 'SHACK',
   CRATE = 'CRATE',
-  HERD = 'HERD'
+  HERD = 'HERD',
+  SILO = 'SILO',
+  RUIN = 'RUIN',
+  FENCE = 'FENCE'
 }
 
 export interface Entity {

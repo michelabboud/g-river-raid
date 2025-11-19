@@ -132,6 +132,24 @@ const SPRITES: Record<string, number[][]> = {
     [0,1,1,0,1,1],
     [0,1,1,0,1,1]
   ],
+  SILO: [
+    [0,1,1,0],
+    [1,1,1,1],
+    [1,1,1,1],
+    [1,1,1,1],
+    [1,1,1,1]
+  ],
+  RUIN: [
+    [0,0,0,0,1,0],
+    [1,0,1,0,1,1],
+    [1,1,1,0,1,1],
+    [1,1,1,1,1,1]
+  ],
+  FENCE: [
+    [1,0,1,0,1,0,1],
+    [1,1,1,1,1,1,1],
+    [1,0,1,0,1,0,1]
+  ],
   FUEL: [
     [0,1,1,1,0],
     [1,1,1,1,1],
@@ -240,6 +258,9 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.SHACK]: { width: 18, height: 14, score: 30, color: '#92400e', ground: true },
   [EntityType.CRATE]: { width: 12, height: 12, score: 20, color: '#b45309', ground: true },
   [EntityType.HERD]: { width: 18, height: 14, score: 30, color: '#d4d4d8', ground: true },
+  [EntityType.SILO]: { width: 12, height: 20, score: 40, color: '#a3a3a3', ground: true },
+  [EntityType.RUIN]: { width: 20, height: 16, score: 20, color: '#78716c', ground: true },
+  [EntityType.FENCE]: { width: 24, height: 10, score: 10, color: '#9a3412', ground: true },
 
   // Powerups
   [EntityType.ITEM_SPREAD]: { width: 16, height: 16, score: 100, color: '#fbbf24' },
@@ -583,15 +604,18 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       if (state.level > 1 && r < 0.2) {
            type = Math.random() > 0.5 ? EntityType.TANK : EntityType.TURRET;
       } else {
-           // Scenery Mix - Expanded
+           // Scenery Mix - Expanded with more variety
            const s = Math.random();
-           if (s < 0.3) type = EntityType.TREE;
-           else if (s < 0.5) type = EntityType.HOUSE;
-           else if (s < 0.6) type = EntityType.BASE;
-           else if (s < 0.7) type = EntityType.STABLE;
-           else if (s < 0.8) type = EntityType.SHACK;
-           else if (s < 0.9) type = EntityType.CRATE;
-           else if (s < 0.95) type = EntityType.HERD;
+           if (s < 0.20) type = EntityType.TREE;
+           else if (s < 0.35) type = EntityType.HOUSE;
+           else if (s < 0.45) type = EntityType.BASE;
+           else if (s < 0.55) type = EntityType.STABLE;
+           else if (s < 0.65) type = EntityType.SHACK;
+           else if (s < 0.75) type = EntityType.CRATE;
+           else if (s < 0.80) type = EntityType.HERD;
+           else if (s < 0.85) type = EntityType.SILO;
+           else if (s < 0.90) type = EntityType.RUIN;
+           else if (s < 0.95) type = EntityType.FENCE;
            else type = EntityType.ANIMAL;
       }
 
@@ -701,6 +725,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
   const createExplosion = (x: number, y: number, color: string) => {
     soundRef.current?.explosion();
+    const state = gameState.current;
     for (let i = 0; i < 6; i++) {
         state.particles.push({
             x, y, vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120,
@@ -812,9 +837,17 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         die();
     }
 
-    const spawnY = Math.floor((state.cameraY + SPAWN_DISTANCE) / 50) * 50;
-    const prevSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE - state.player.speed * dt) / 50) * 50;
-    if (spawnY > prevSpawnY) spawnEntity(spawnY);
+    const spawnStep = 50;
+    const currentSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE) / spawnStep) * spawnStep;
+    const prevSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE - state.player.speed * dt) / spawnStep) * spawnStep;
+    
+    // Ensure we don't skip rows if frame rate drops or speed is high
+    if (currentSpawnY > prevSpawnY) {
+        // Loop from the next required row up to the current target row
+        for (let y = prevSpawnY + spawnStep; y <= currentSpawnY; y += spawnStep) {
+            spawnEntity(y);
+        }
+    }
 
     // --- ENTITY UPDATE ---
     let activeBoss: Entity | null = null;
