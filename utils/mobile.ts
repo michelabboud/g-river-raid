@@ -48,9 +48,9 @@ export const isMobileDevice = (): boolean => {
  * screen sizes while maintaining aspect ratio and leaving room for UI elements.
  *
  * Scaling Strategy:
- * - Desktop: Fixed 1.5x scale for crisp rendering
+ * - Desktop: Dynamic scaling up to 80% of window size for immersive experience
  * - Mobile: Dynamic scaling based on screen dimensions
- *   - Accounts for virtual joystick and fire button (100-120px)
+ *   - Accounts for virtual joystick and fire button (110-132px)
  *   - Accounts for HUD elements at top (40px)
  *   - Leaves margins for browser UI (address bar, navigation)
  *   - Caps at 2.0x maximum to prevent oversized rendering
@@ -72,11 +72,6 @@ export const getCanvasScale = (): number => {
 
   const isMobile = isMobileDevice();
 
-  // Desktop devices: use fixed 1.5x scale for optimal viewing
-  if (!isMobile) return 1.5;
-
-  // Mobile devices: calculate dynamic scale based on screen size
-
   // Get current screen dimensions
   const screenWidth = window.innerWidth;
   const screenHeight = window.innerHeight;
@@ -85,11 +80,25 @@ export const getCanvasScale = (): number => {
   const canvasWidth = 320;
   const canvasHeight = 480;
 
+  if (!isMobile) {
+    // Desktop devices: dynamic scaling up to 80% of window size
+    // Leave 10% margin on each side (80% total usage)
+    const scaleX = (screenWidth * 0.80) / canvasWidth;
+    const scaleY = (screenHeight * 0.80) / canvasHeight;
+
+    // Use the smaller scale to maintain aspect ratio
+    // Set reasonable bounds: min 1.5x, max 4.0x for very large screens
+    const scale = Math.max(1.5, Math.min(scaleX, scaleY, 4.0));
+    return scale;
+  }
+
+  // Mobile devices: calculate dynamic scale based on screen size
+
   // Calculate reserved space for UI elements:
-  // - Touch controls at bottom: 100-120px (joystick + fire button)
+  // - Touch controls at bottom: 110-132px (increased joystick + fire button)
   // - HUD at top: 40px (score, lives, fuel gauge)
-  // Total reserved height: 160px
-  const reservedHeight = 160;
+  // Total reserved height: 180px
+  const reservedHeight = 180;
   const availableHeight = screenHeight - reservedHeight;
 
   // Calculate scale factors for width and height
