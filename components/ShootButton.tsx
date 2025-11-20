@@ -177,8 +177,8 @@ export const ShootButton: React.FC<ShootButtonProps> = ({ onShoot }) => {
         active ? 'scale-95' : 'scale-100' // Shrink slightly when pressed for tactile feedback
       }`}
       style={{
-        width: 100,
-        height: 100,
+        width: 110,  // Increased by 10% (100 * 1.1) for better touch target
+        height: 110, // Increased by 10% (100 * 1.1) for better touch target
         zIndex: 1000, // High z-index to stay above game canvas
       }}
     >

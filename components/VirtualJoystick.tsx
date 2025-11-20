@@ -63,10 +63,34 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
   // Store the touch identifier to track specific touch across events
   const touchIdRef = useRef<number | null>(null);
 
-  // Joystick dimensions and constraints
-  const baseSize = 120;    // Diameter of the joystick base circle
-  const stickSize = 50;    // Diameter of the movable stick
+  // Joystick dimensions and constraints (10% larger for better control)
+  const baseSize = 132;    // Diameter of the joystick base circle (120 * 1.1)
+  const stickSize = 55;    // Diameter of the movable stick (50 * 1.1)
   const maxDistance = (baseSize - stickSize) / 2; // Maximum stick travel distance from center
+
+  // Timer for auto-release when touch moves outside joystick
+  const releaseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * Clears the release timer if it exists
+   */
+  const clearReleaseTimer = () => {
+    if (releaseTimerRef.current) {
+      clearTimeout(releaseTimerRef.current);
+      releaseTimerRef.current = null;
+    }
+  };
+
+  /**
+   * Releases the joystick and resets to center
+   */
+  const releaseJoystick = () => {
+    touchIdRef.current = null;
+    setActive(false);
+    setPosition({ x: 0, y: 0 });
+    onDirectionChange({ up: false, down: false, left: false, right: false });
+    clearReleaseTimer();
+  };
 
   /**
    * Calculates directional booleans from stick displacement
@@ -75,8 +99,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
    * Implements a dead zone to prevent tiny movements from registering as input.
    *
    * Direction Thresholds:
-   * - Dead zone: Distance < 10 pixels = no input
-   * - Directional threshold: |component| > 10 = direction active
+   * - Dead zone: Distance < 8 pixels = no input (reduced for more sensitivity)
+   * - Directional threshold: |component| > 8 = direction active
    *
    * This allows for:
    * - Pure cardinal directions (up, down, left, right)
@@ -96,8 +120,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
     const distance = Math.sqrt(dx * dx + dy * dy); // Distance from center
 
     // Dead zone: ignore very small movements to prevent jitter
-    // This prevents accidental input from finger wobble or imprecise touches
-    if (distance < 10) {
+    // Reduced to 8 pixels for more sensitive return to center
+    if (distance < 8) {
       return { up: false, down: false, left: false, right: false };
     }
 
@@ -106,11 +130,12 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
 
     // Determine active directions based on component thresholds
     // Using component-based approach (vs angle sectors) allows clean diagonal movement
+    // Reduced threshold to 8 for more sensitive detection
     return {
-      up: dy < -10,     // Negative Y = upward on screen
-      down: dy > 10,    // Positive Y = downward on screen
-      left: dx < -10,   // Negative X = leftward
-      right: dx > 10,   // Positive X = rightward
+      up: dy < -8,     // Negative Y = upward on screen
+      down: dy > 8,    // Positive Y = downward on screen
+      left: dx < -8,   // Negative X = leftward
+      right: dx > 8,   // Positive X = rightward
     };
   };
 
@@ -130,6 +155,9 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
 
     // Ignore if no touch or another touch is already being tracked
     if (!touch || touchIdRef.current !== null) return;
+
+    // Clear any existing release timer
+    clearReleaseTimer();
 
     // Store touch identifier for tracking
     touchIdRef.current = touch.identifier;
@@ -154,6 +182,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
    * Movement Constraints:
    * - Stick cannot move beyond maxDistance from center
    * - Movement is clamped to circular boundary (not square)
+   * - If touch moves far outside joystick, releases after 150ms
    *
    * @param {React.TouchEvent} e - Touch event object
    */
@@ -176,9 +205,24 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
     let dx = touch.clientX - centerX;
     let dy = touch.clientY - centerY;
 
+    // Calculate actual distance from center for boundary detection
+    const actualDistance = Math.sqrt(dx * dx + dy * dy);
+
+    // If touch has moved significantly outside joystick (2x base size), schedule release
+    const releaseThreshold = baseSize * 1.2;
+    if (actualDistance > releaseThreshold) {
+      if (!releaseTimerRef.current) {
+        releaseTimerRef.current = setTimeout(() => {
+          releaseJoystick();
+        }, 150);
+      }
+    } else {
+      // Touch is within acceptable range - cancel any pending release
+      clearReleaseTimer();
+    }
+
     // Constrain stick position to maximum distance (circular boundary)
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > maxDistance) {
+    if (actualDistance > maxDistance) {
       // If beyond max distance, clamp to the boundary circle
       const angle = Math.atan2(dy, dx);
       dx = Math.cos(angle) * maxDistance;
@@ -207,17 +251,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onDirectionCha
     const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
     if (!touch) return;
 
-    // Clear touch tracking
-    touchIdRef.current = null;
-
-    // Deactivate visual feedback
-    setActive(false);
-
-    // Return stick to center
-    setPosition({ x: 0, y: 0 });
-
-    // Reset direction to neutral
-    onDirectionChange({ up: false, down: false, left: false, right: false });
+    // Release immediately
+    releaseJoystick();
   };
 
   return (
