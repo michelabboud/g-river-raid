@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Entity, EntityType, GameState, Player, HighScore } from '../types';
 import { VirtualJoystick } from './VirtualJoystick';
 import { ShootButton } from './ShootButton';
+import { FullscreenButton } from './FullscreenButton';
 import { isMobileDevice, getCanvasScale } from '../utils/mobile';
 
 // --- CONSTANTS ---
@@ -1163,11 +1164,17 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     }
 
     // --- PLAYER CONTROLS ---
+    // Touch controls are 50% speed for better control
+    const TOUCH_SPEED_MULTIPLIER = 0.5;
+
     // Horizontal movement (keyboard + touch)
+    const usingTouchHorizontal = touchDirection.current.left || touchDirection.current.right;
+    const usingKeyboardHorizontal = keys.current['ArrowLeft'] || keys.current['a'] || keys.current['ArrowRight'] || keys.current['d'];
+
     if (keys.current['ArrowLeft'] || keys.current['a'] || touchDirection.current.left) {
-        state.player.vx = -PLAYER_SPEED_X;
+        state.player.vx = -PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER : 1);
     } else if (keys.current['ArrowRight'] || keys.current['d'] || touchDirection.current.right) {
-        state.player.vx = PLAYER_SPEED_X;
+        state.player.vx = PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER : 1);
     } else {
         state.player.vx = 0;
     }
@@ -1176,12 +1183,15 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     let moveY = 0;
 
     // Vertical movement (keyboard + touch)
+    const usingTouchVertical = touchDirection.current.up || touchDirection.current.down;
+    const usingKeyboardVertical = keys.current['ArrowUp'] || keys.current['w'] || keys.current['ArrowDown'] || keys.current['s'];
+
     if (keys.current['ArrowUp'] || keys.current['w'] || touchDirection.current.up) {
-        targetScroll = MAX_SCROLL_SPEED;
-        moveY = -PLAYER_SPEED_Y;
+        targetScroll = MAX_SCROLL_SPEED * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
+        moveY = -PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
     } else if (keys.current['ArrowDown'] || keys.current['s'] || touchDirection.current.down) {
         targetScroll = MIN_SCROLL_SPEED;
-        moveY = PLAYER_SPEED_Y;
+        moveY = PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
     }
 
     state.player.y += moveY * dt;
@@ -1948,6 +1958,9 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
               />
             </>
           )}
+
+          {/* Fullscreen Button */}
+          <FullscreenButton />
       </div>
     </div>
   );
