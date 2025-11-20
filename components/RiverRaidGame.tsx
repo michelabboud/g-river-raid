@@ -1261,17 +1261,19 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     }
 
     // --- PLAYER CONTROLS ---
-    // Touch controls are 55% speed for better control
-    const TOUCH_SPEED_MULTIPLIER = 0.55;
+    // Touch controls are reduced for better control
+    // Horizontal is 20% slower than vertical for precise navigation
+    const TOUCH_SPEED_MULTIPLIER_HORIZONTAL = 0.44; // 55% * 0.8 (20% reduction)
+    const TOUCH_SPEED_MULTIPLIER_VERTICAL = 0.55;   // Unchanged
 
     // Horizontal movement (keyboard + touch)
     const usingTouchHorizontal = touchDirection.current.left || touchDirection.current.right;
     const usingKeyboardHorizontal = keys.current['ArrowLeft'] || keys.current['a'] || keys.current['ArrowRight'] || keys.current['d'];
 
     if (keys.current['ArrowLeft'] || keys.current['a'] || touchDirection.current.left) {
-        state.player.vx = -PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER : 1);
+        state.player.vx = -PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER_HORIZONTAL : 1);
     } else if (keys.current['ArrowRight'] || keys.current['d'] || touchDirection.current.right) {
-        state.player.vx = PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER : 1);
+        state.player.vx = PLAYER_SPEED_X * (usingTouchHorizontal && !usingKeyboardHorizontal ? TOUCH_SPEED_MULTIPLIER_HORIZONTAL : 1);
     } else {
         state.player.vx = 0;
     }
@@ -1284,11 +1286,11 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     const usingKeyboardVertical = keys.current['ArrowUp'] || keys.current['w'] || keys.current['ArrowDown'] || keys.current['s'];
 
     if (keys.current['ArrowUp'] || keys.current['w'] || touchDirection.current.up) {
-        targetScroll = MAX_SCROLL_SPEED * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
-        moveY = -PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
+        targetScroll = MAX_SCROLL_SPEED * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER_VERTICAL : 1);
+        moveY = -PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER_VERTICAL : 1);
     } else if (keys.current['ArrowDown'] || keys.current['s'] || touchDirection.current.down) {
         targetScroll = MIN_SCROLL_SPEED;
-        moveY = PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER : 1);
+        moveY = PLAYER_SPEED_Y * (usingTouchVertical && !usingKeyboardVertical ? TOUCH_SPEED_MULTIPLIER_VERTICAL : 1);
     }
 
     state.player.y += moveY * dt;

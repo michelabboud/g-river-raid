@@ -41,6 +41,32 @@ export const ShootButton: React.FC<ShootButtonProps> = ({ onShoot }) => {
   // Each touch event has a unique identifier; we only respond to the first touch
   const touchIdRef = useRef<number | null>(null);
 
+  // Reference to the button element for boundary checking
+  const buttonRef = useRef<HTMLDivElement>(null);
+
+  // Timer for auto-release after touch moves outside button
+  const releaseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * Clears the release timer if it exists
+   */
+  const clearReleaseTimer = () => {
+    if (releaseTimerRef.current) {
+      clearTimeout(releaseTimerRef.current);
+      releaseTimerRef.current = null;
+    }
+  };
+
+  /**
+   * Releases the button and stops shooting
+   */
+  const releaseButton = () => {
+    touchIdRef.current = null;
+    setActive(false);
+    onShoot(false);
+    clearReleaseTimer();
+  };
+
   /**
    * Handles the start of a touch event on the fire button
    *
@@ -63,6 +89,9 @@ export const ShootButton: React.FC<ShootButtonProps> = ({ onShoot }) => {
     const touch = e.touches[0];
     if (!touch) return;
 
+    // Clear any existing release timer
+    clearReleaseTimer();
+
     // Store the touch identifier to track this specific touch
     touchIdRef.current = touch.identifier;
 
@@ -71,6 +100,42 @@ export const ShootButton: React.FC<ShootButtonProps> = ({ onShoot }) => {
 
     // Notify parent that shooting has started
     onShoot(true);
+  };
+
+  /**
+   * Handles touch movement to detect when user slides finger off button
+   *
+   * If the touch moves outside the button area, schedule a delayed release.
+   * This gives a small grace period before stopping fire.
+   *
+   * @param {React.TouchEvent} e - Touch event object
+   */
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchIdRef.current === null || !buttonRef.current) return;
+
+    // Find the touch that matches our stored identifier
+    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
+
+    // Check if touch is still within button bounds
+    const rect = buttonRef.current.getBoundingClientRect();
+    const isInside =
+      touch.clientX >= rect.left &&
+      touch.clientX <= rect.right &&
+      touch.clientY >= rect.top &&
+      touch.clientY <= rect.bottom;
+
+    if (!isInside) {
+      // Touch has moved outside button - schedule release after 250ms
+      if (!releaseTimerRef.current) {
+        releaseTimerRef.current = setTimeout(() => {
+          releaseButton();
+        }, 250);
+      }
+    } else {
+      // Touch is back inside - cancel any pending release
+      clearReleaseTimer();
+    }
   };
 
   /**
@@ -95,21 +160,17 @@ export const ShootButton: React.FC<ShootButtonProps> = ({ onShoot }) => {
     const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
     if (!touch) return;
 
-    // Clear the touch identifier
-    touchIdRef.current = null;
-
-    // Deactivate visual feedback
-    setActive(false);
-
-    // Notify parent that shooting has stopped
-    onShoot(false);
+    // Release the button immediately
+    releaseButton();
   };
 
   return (
     // Main button container with touch event handlers
     // Positioned in bottom-left for comfortable thumb reach on mobile
     <div
+      ref={buttonRef}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd} // Handle interrupted touches (system gestures, etc.)
       className={`fixed bottom-8 left-8 touch-none transition-all ${
