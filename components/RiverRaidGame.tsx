@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import { Entity, EntityType, GameState, Player } from '../types';
+import { Entity, EntityType, GameState, Player, HighScore } from '../types';
 
 // --- CONSTANTS ---
 const CANVAS_WIDTH = 320;
@@ -19,8 +18,12 @@ const SPAWN_DISTANCE = 700;
 const FUEL_GUARANTEE_DISTANCE = 400; 
 const MULTIPLIER_INCREMENT_DISTANCE = 1000; 
 const LEVEL_LENGTH = 4000; 
+const WINGMAN_OFFSET_X = 35;
+const WINGMAN_OFFSET_Y = 20;
 
 // --- SPRITE DEFINITIONS ---
+// Binary arrays representing pixel art for each entity type.
+// 1 = filled pixel, 0 = transparent.
 const SPRITES: Record<string, number[][]> = {
   PLAYER: [
     [0,0,0,1,0,0,0],
@@ -31,6 +34,14 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,0,1,1,1],
     [0,1,0,1,0,1,0],
     [1,1,0,0,0,1,1]
+  ],
+  WINGMAN: [
+    [0,0,0,1,0,0,0],
+    [0,0,1,1,1,0,0],
+    [0,1,1,1,1,1,0],
+    [1,1,0,1,0,1,1],
+    [1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1]
   ],
   HELICOPTER: [
     [0,0,1,1,1,0,0],
@@ -72,6 +83,13 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [0,1,1,1,0]
   ],
+  HOVERCRAFT: [
+    [0,0,1,1,1,0,0],
+    [0,1,1,1,1,1,0],
+    [1,1,0,1,0,1,1],
+    [1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,0]
+  ],
   WRECK: [
     [0,0,1,0,0,1,0],
     [0,1,0,1,0,0,1],
@@ -102,6 +120,13 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [1,0,1,0,1],
     [0,1,0,1,0]
+  ],
+  DRONE: [
+    [1,0,1],
+    [0,1,0],
+    [1,1,1],
+    [0,1,0],
+    [1,0,1]
   ],
   BOMBER: [
     [0,0,0,1,1,1,0,0,0],
@@ -354,20 +379,24 @@ interface EntityDef {
   height: number;
   score: number;
   color: string;
-  ground?: boolean;
-  obstacle?: boolean;
+  ground?: boolean; // Is this entity placed on the ground (sides)?
+  obstacle?: boolean; // Is this a static obstacle?
+  hp?: number; // Hit points for sturdy enemies
 }
 
+// Definition of spawn rates, scoring, and dimensions for all entities
 const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.HELICOPTER]: { width: 20, height: 16, score: 100, color: '#ef4444' },
   [EntityType.SHIP]: { width: 24, height: 14, score: 60, color: '#ef4444' },
-  [EntityType.DESTROYER]: { width: 30, height: 18, score: 120, color: '#64748b' },
+  [EntityType.DESTROYER]: { width: 30, height: 18, score: 300, color: '#64748b', hp: 3 }, // Armored
   [EntityType.SUBMARINE]: { width: 22, height: 12, score: 150, color: '#0ea5e9' },
   [EntityType.BOAT]: { width: 16, height: 12, score: 80, color: '#ef4444' },
+  [EntityType.HOVERCRAFT]: { width: 18, height: 10, score: 150, color: '#10b981' },
   [EntityType.WRECK]: { width: 22, height: 16, score: 0, color: '#78350f', obstacle: true },
   [EntityType.BUOY]: { width: 12, height: 14, score: 0, color: '#ef4444', obstacle: true },
   [EntityType.JET]: { width: 20, height: 14, score: 200, color: '#3b82f6' },
   [EntityType.FIGHTER]: { width: 18, height: 16, score: 250, color: '#eab308' },
+  [EntityType.DRONE]: { width: 10, height: 10, score: 300, color: '#a855f7' },
   [EntityType.BOMBER]: { width: 28, height: 20, score: 250, color: '#1e3a8a' },
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
   [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
@@ -403,21 +432,24 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.ITEM_REGEN]: { width: 16, height: 16, score: 100, color: '#4ade80' },
   [EntityType.ITEM_SPEED]: { width: 16, height: 16, score: 100, color: '#3b82f6' },
   [EntityType.ITEM_LIFE]: { width: 16, height: 16, score: 500, color: '#f43f5e' },
+  
+  [EntityType.WINGMAN]: { width: 20, height: 14, score: 0, color: '#22d3ee' },
 };
 
 interface LevelConfig {
   colors: { bg: string; water: string; earth: string; bridge: string };
   spawnRate: number; 
-  pool: Partial<Record<EntityType, number>>;
+  pool: Partial<Record<EntityType, number>>; // Spawn probability weights
 }
 
+// Configuration for different game levels (colors, difficulty, enemy mix)
 const LEVEL_CONFIGS: LevelConfig[] = [
   { // Level 1: Day
     colors: { bg: '#4d7c0f', water: '#3b82f6', earth: '#a16207', bridge: '#fbbf24' },
     spawnRate: 0.15,
     pool: { 
-      [EntityType.HELICOPTER]: 25, [EntityType.SHIP]: 20, [EntityType.BOAT]: 15, 
-      [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 5, [EntityType.FUEL]: 25, 
+      [EntityType.HELICOPTER]: 20, [EntityType.SHIP]: 15, [EntityType.BOAT]: 15, 
+      [EntityType.HOVERCRAFT]: 10, [EntityType.SUBMARINE]: 5, [EntityType.FUEL]: 25, 
       [EntityType.FUEL_DEPOT]: 5,
       [EntityType.ROCK]: 10, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5,
       [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, 
@@ -428,11 +460,11 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     colors: { bg: '#c2410c', water: '#1d4ed8', earth: '#78350f', bridge: '#d6d3d1' },
     spawnRate: 0.18,
     pool: { 
-      [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, 
-      [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 25,
-      [EntityType.FUEL_DEPOT]: 5,
+      [EntityType.HELICOPTER]: 10, [EntityType.JET]: 15, [EntityType.SHIP]: 10, 
+      [EntityType.DESTROYER]: 5, [EntityType.SUBMARINE]: 10, [EntityType.FUEL]: 25,
+      [EntityType.FUEL_DEPOT]: 5, [EntityType.DRONE]: 10,
       [EntityType.ROCK]: 15, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5, 
-      [EntityType.FIGHTER]: 10, [EntityType.ITEM_SPREAD]: 3, 
+      [EntityType.FIGHTER]: 15, [EntityType.ITEM_SPREAD]: 3, 
       [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3,
       [EntityType.BRIDGE]: 4, [EntityType.ITEM_LIFE]: 1
     }
@@ -441,8 +473,9 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     colors: { bg: '#111827', water: '#312e81', earth: '#374151', bridge: '#9ca3af' },
     spawnRate: 0.20,
     pool: { 
-      [EntityType.JET]: 25, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, 
-      [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FIGHTER]: 15,
+      [EntityType.JET]: 20, [EntityType.BOMBER]: 15, [EntityType.MINE]: 20, 
+      [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 15, [EntityType.FIGHTER]: 10,
+      [EntityType.DRONE]: 15,
       [EntityType.FUEL]: 25, [EntityType.FUEL_DEPOT]: 5,
       [EntityType.ROCK]: 20, [EntityType.BUOY]: 10,
       [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3, 
@@ -453,10 +486,10 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     colors: { bg: '#4c0519', water: '#064e3b', earth: '#4a044e', bridge: '#f43f5e' },
     spawnRate: 0.25,
     pool: { 
-      [EntityType.JET]: 20, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, 
-      [EntityType.HELICOPTER]: 10, [EntityType.FIGHTER]: 20, [EntityType.SUBMARINE]: 15, 
-      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 25, [EntityType.FUEL_DEPOT]: 5,
-      [EntityType.ROCK]: 20, 
+      [EntityType.JET]: 15, [EntityType.BOMBER]: 15, [EntityType.MINE]: 20, 
+      [EntityType.HELICOPTER]: 5, [EntityType.FIGHTER]: 15, [EntityType.SUBMARINE]: 10, 
+      [EntityType.DESTROYER]: 20, [EntityType.FUEL]: 25, [EntityType.FUEL_DEPOT]: 5,
+      [EntityType.ROCK]: 20, [EntityType.DRONE]: 20,
       [EntityType.WRECK]: 10, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, 
       [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 5, 
       [EntityType.ITEM_LIFE]: 1
@@ -490,6 +523,7 @@ const BOSS_CONFIGS: BossConfig[] = [
 ];
 
 // --- SOUND ENGINE ---
+// Handles all synthesized audio using the Web Audio API.
 class SoundEngine {
   ctx: AudioContext | null = null;
   gainNode: GainNode | null = null;
@@ -512,6 +546,7 @@ class SoundEngine {
     } catch (e) { console.error(e); }
   }
 
+  /** Starts the continuous low engine hum sound */
   startEngineHum() {
     if (!this.ctx || this.engineOsc) return;
     try {
@@ -536,6 +571,7 @@ class SoundEngine {
     } catch (e) { console.error("Error starting engine sound", e); }
   }
 
+  /** Generates pink noise for wind/nature ambience */
   startNatureAmbience() {
     if (!this.ctx || this.ambienceNode) return;
     try {
@@ -603,6 +639,7 @@ class SoundEngine {
     }
   }
 
+  /** Modulates engine pitch based on flight speed */
   updateEngine(speed: number) {
     if (!this.ctx || !this.engineOsc) return;
     const pitch = 60 + (speed / MAX_SCROLL_SPEED) * 60;
@@ -699,7 +736,9 @@ class SoundEngine {
 
   shoot() { this.playTone(900, 'square', 0.1, 0.1, -400); }
   bossShoot() { this.playTone(200, 'sawtooth', 0.3, 0.2, -50); }
-  
+  coin() { this.playTone(1000, 'sine', 0.1, 0.1); setTimeout(() => this.playTone(1500, 'sine', 0.15, 0.05), 50); }
+  hit() { this.playTone(150, 'square', 0.05, 0.1); }
+
   explosion() { 
     // Crunchier explosion mixing noise and low freq osc
     this.playNoise(0.5, 0.5); 
@@ -726,17 +765,27 @@ class SoundEngine {
 }
 
 interface Props {
-  onExit: () => void;
+  hasWingman: boolean;
+  highScores: HighScore[];
+  onGameEnd: (score: number, initials: string | null, coinsEarned: number) => void;
+  onExit?: () => void; // Backwards compat
 }
 
-const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
+/**
+ * Core Game Component.
+ * Handles the game loop, rendering, collision detection, and state management.
+ */
+const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
+  const [highScoreInitials, setHighScoreInitials] = useState('');
+  const [showHighScoreInput, setShowHighScoreInput] = useState(false);
   
   const keys = useRef<{ [key: string]: boolean }>({});
   const soundRef = useRef<SoundEngine | null>(null);
   
+  // Main Game State
   const gameState = useRef<GameState>({
     player: {
       id: 0,
@@ -768,12 +817,17 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     distanceSinceLastFuel: 0,
     distanceInLevel: 0,
     multiplierDistance: 0,
-    bossActive: false
+    bossActive: false,
+    gameTime: 0,
+    sessionCoins: 0,
   });
 
+  // Separate state for React UI overlay updates (less frequent than game loop)
   const [hudState, setHudState] = useState({ 
     score: 0, fuel: 100, lives: 3, gameOver: false, level: 1, multiplier: 1,
-    bossName: '', bossHp: 0, bossMaxHp: 0, isPaused: false
+    bossName: '', bossHp: 0, bossMaxHp: 0, isPaused: false, sessionCoins: 0,
+    upgrades: { spread: false, rapid: false, speed: false },
+    shieldActive: false
   });
 
   useEffect(() => {
@@ -788,24 +842,40 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       window.addEventListener('keydown', resume, { once: true });
       window.addEventListener('touchstart', resume, { once: true });
       
+      // Spawn Wingman if selected
+      if (hasWingman) {
+         gameState.current.entities.push({
+           id: Math.random(),
+           type: EntityType.WINGMAN,
+           x: CANVAS_WIDTH / 2 - 30,
+           y: CANVAS_HEIGHT - 80 + 20,
+           width: 20, height: 14,
+           vx: 0, vy: 0, active: true, frame: 0,
+           scoreValue: 0
+         });
+      }
+
       return () => {
           soundRef.current?.stopEngineHum();
           soundRef.current?.stopNatureAmbience();
           soundRef.current?.stopBossMusic();
       };
-  }, []);
+  }, [hasWingman]);
 
-  // --- GAME LOGIC ---
+  // --- GAME LOGIC HELPERS ---
 
+  // Simplex noise-like function for procedural river path
   const noise = (y: number) => {
     const x = (y + gameState.current.riverSeed) * 0.006;
     return Math.sin(x) * 0.7 + Math.sin(x * 1.7) * 0.3;
   };
 
+  // Calculates river width and center position for a given Y coordinate
   const getRiverStats = (y: number) => {
     const n = noise(y);
     const center = (CANVAS_WIDTH / 2) + (n * (CANVAS_WIDTH * 0.25));
     const levelFactor = Math.min(0.3, gameState.current.level * 0.02);
+    // Boss arenas are straight and wide
     if (gameState.current.bossActive) {
         return { center: CANVAS_WIDTH/2, width: CANVAS_WIDTH * 0.85, isBridgeZone: false };
     }
@@ -819,12 +889,13 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     return { left: center - width / 2, right: center + width / 2 };
   };
 
+  /** Spawns scenery and ground enemies on the river banks */
   const spawnBankEntity = (y: number, side: 'left' | 'right', limitX: number) => {
       const state = gameState.current;
       const r = Math.random();
       let type = EntityType.TREE;
       
-      // Hostile Ground Units
+      // Hostile Ground Units probability
       if (r < 0.20) {
            const roll = Math.random();
            if (roll > 0.6) type = EntityType.TANK;
@@ -856,6 +927,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       let x = 0;
       const hugWater = Math.random() < 0.4; 
 
+      // Place entity on left or right bank, optionally hugging the shore
       if (side === 'left') {
           const maxX = limitX - def.width; 
           const minX = 4;
@@ -889,6 +961,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       });
   };
 
+  /** Spawns enemies and items within the river channel */
   const spawnRiverEntity = (y: number) => {
     const state = gameState.current;
     const cfgIndex = Math.min(state.level - 1, LEVEL_CONFIGS.length - 1);
@@ -906,6 +979,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     if (forceFuel) {
         type = EntityType.FUEL;
     } else {
+        // Weighted random selection from pool
         const pool = config.pool;
         const total = Object.values(pool).reduce((a, b) => a + b, 0);
         let r = Math.random() * total;
@@ -935,6 +1009,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     const x = bounds.left + margin + Math.random() * (bounds.right - bounds.left - margin * 2);
     
     let vx = 0;
+    // Initialize velocities based on type
     if (type === EntityType.HELICOPTER) vx = (Math.random() > 0.5 ? 1 : -1) * (30 + state.level * 5);
     if (type === EntityType.JET) vx = (x < CANVAS_WIDTH/2 ? 1 : -1) * (100 + state.level * 20);
     if (type === EntityType.FIGHTER) vx = (Math.random() > 0.5 ? 1 : -1) * (80 + state.level * 15);
@@ -942,16 +1017,21 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     if (type === EntityType.SHIP || type === EntityType.DESTROYER) vx = (Math.random() > 0.5 ? 1 : -1) * 20;
     if (type === EntityType.BOAT) vx = (Math.random() > 0.5 ? 1 : -1) * 15;
     if (type === EntityType.SUBMARINE) vx = (Math.random() > 0.5 ? 1 : -1) * 10;
+    if (type === EntityType.HOVERCRAFT) vx = (Math.random() > 0.5 ? 1 : -1) * 60;
+    if (type === EntityType.DRONE) vx = (Math.random() > 0.5 ? 1 : -1) * 80;
 
     state.entities.push({
         id: Math.random(), type, x, y,
         width: def.width, height: def.height,
-        vx, vy: 0, active: true, frame: 0, scoreValue: def.score
+        vx, vy: 0, active: true, frame: 0, scoreValue: def.score,
+        hp: def.hp
     });
   }
 
+  /** Main spawner loop called as the player scrolls */
   const spawnEntity = (y: number) => {
     const state = gameState.current;
+    // Check for Boss Spawn condition
     if (!state.bossActive && state.distanceInLevel > LEVEL_LENGTH) {
         if (!state.entities.some(e => e.type === EntityType.BOSS)) {
             const bossId = (state.level - 1) % BOSS_CONFIGS.length;
@@ -1029,8 +1109,22 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     }
   };
 
+  const createHitEffect = (x: number, y: number, color: string) => {
+     const state = gameState.current;
+     for(let i=0; i<3; i++) {
+         state.particles.push({
+             x, y, 
+             vx: (Math.random() - 0.5) * 100, 
+             vy: (Math.random() - 0.5) * 100,
+             life: 0.2, maxLife: 0.2,
+             color: color, size: 2, style: 'pixel'
+         });
+     }
+  };
+
   const state = gameState.current; 
 
+  // --- MAIN UPDATE LOOP ---
   const update = (dt: number) => {
     if (state.isGameOver) {
         soundRef.current?.stopEngineHum();
@@ -1039,13 +1133,25 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         return;
     }
     if (state.isPaused || state.player.isDead) return;
+    
+    // --- COIN LOGIC ---
+    const prevTime = Math.floor(state.gameTime);
+    state.gameTime += dt;
+    const currTime = Math.floor(state.gameTime);
+    
+    // Earn coins every minute
+    if (currTime > prevTime && currTime % 60 === 0) {
+        const earned = hasWingman ? 2 : 1;
+        state.sessionCoins += earned;
+        soundRef.current?.coin();
+    }
 
     // --- SPAWN PROTECTION ---
     if (state.player.invulnerableTimer > 0) {
         state.player.invulnerableTimer -= dt;
     }
 
-    // --- CONTROLS ---
+    // --- PLAYER CONTROLS ---
     if (keys.current['ArrowLeft'] || keys.current['a']) state.player.vx = -PLAYER_SPEED_X;
     else if (keys.current['ArrowRight'] || keys.current['d']) state.player.vx = PLAYER_SPEED_X;
     else state.player.vx = 0;
@@ -1074,6 +1180,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       state.distanceInLevel += state.player.speed * dt;
       state.multiplierDistance += state.player.speed * dt;
       
+      // Increase multiplier based on distance
       if (state.multiplierDistance >= MULTIPLIER_INCREMENT_DISTANCE) {
           state.player.multiplier = Math.min(10, state.player.multiplier + 1); 
           state.multiplierDistance = 0;
@@ -1113,13 +1220,14 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         }
     }
 
-    // --- WORLD ---
+    // --- WORLD BOUNDS ---
     const worldPlayerY = state.cameraY + (CANVAS_HEIGHT - state.player.y);
     const bounds = getBounds(worldPlayerY);
     if (state.player.x < bounds.left + 8 || state.player.x > bounds.right - 8) {
         die();
     }
 
+    // --- SPAWNING ---
     const spawnStep = 50;
     const currentSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE) / spawnStep) * spawnStep;
     const prevSpawnY = Math.floor((state.cameraY + SPAWN_DISTANCE - state.player.speed * dt) / spawnStep) * spawnStep;
@@ -1135,6 +1243,77 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
     state.entities.forEach(ent => {
         if (!ent.active) return;
+        
+        // Hit flash timer decay
+        if (ent.hitFlashTimer && ent.hitFlashTimer > 0) ent.hitFlashTimer -= dt;
+
+        // ENEMY UNIQUE BEHAVIORS
+        if (ent.type === EntityType.BOMBER) {
+             // Periodically drop a mine
+             if (Math.random() < 0.015) {
+                 state.entities.push({
+                    id: Math.random(), type: EntityType.MINE,
+                    x: ent.x, y: ent.y - 10, width: 14, height: 14,
+                    vx: 0, vy: 0, active: true, frame: 0, scoreValue: 200
+                 });
+             }
+        }
+        
+        if (ent.type === EntityType.FIGHTER) {
+             // Evasive sine wave
+             ent.x += Math.sin(Date.now() * 0.005 + ent.id) * 100 * dt;
+        }
+        
+        if (ent.type === EntityType.DRONE) {
+             // Fast erratic zigzag
+             if (Math.random() < 0.1) ent.vx *= -1;
+             ent.x += ent.vx * dt * 2;
+        }
+
+        // SPARKLING POWERUPS
+        if (ent.type.startsWith('ITEM_') && Math.random() < 0.05) {
+            state.particles.push({
+                x: ent.x + (Math.random() - 0.5) * ent.width,
+                y: ent.y + (Math.random() - 0.5) * ent.height,
+                vx: 0, vy: -20,
+                life: 0.3, maxLife: 0.3,
+                color: '#fff', size: 2, style: 'pixel'
+            });
+        }
+
+        // WINGMAN LOGIC
+        if (ent.type === EntityType.WINGMAN) {
+            // Follow player logic with lag
+            const targetX = state.player.x + WINGMAN_OFFSET_X;
+            const targetY = state.cameraY + (CANVAS_HEIGHT - state.player.y) - WINGMAN_OFFSET_Y;
+            
+            // Simple lerp
+            ent.x += (targetX - ent.x) * 5 * dt;
+            ent.y += (targetY - ent.y) * 5 * dt;
+            
+            // Bounds safety for wingman
+            const wb = getBounds(ent.y);
+            if (ent.x < wb.left + 10) ent.x = wb.left + 10;
+            if (ent.x > wb.right - 10) ent.x = wb.right - 10;
+            
+            // Auto-shoot
+            if (Math.random() < 0.05) { 
+               const enemiesAhead = state.entities.some(e => 
+                  e.active && e.type !== EntityType.BULLET && e.type !== EntityType.WINGMAN && e.type !== EntityType.PLAYER &&
+                  e.y > ent.y && e.y < ent.y + 400 && Math.abs(e.x - ent.x) < 30
+               );
+               
+               if (enemiesAhead) {
+                   state.entities.push({
+                        id: Math.random(), type: EntityType.BULLET,
+                        x: ent.x, y: ent.y + 10,
+                        width: 4, height: 8, vx: 0, vy: BASE_BULLET_SPEED + state.player.speed,
+                        active: true, frame: 0
+                   });
+               }
+            }
+            return;
+        }
         
         if (ent.type === EntityType.BOSS) {
             activeBoss = ent;
@@ -1178,20 +1357,21 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
              ent.x += ent.vx * dt;
         }
 
-        // Bounds Check
-        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE, EntityType.DESTROYER, EntityType.JET, EntityType.FIGHTER].includes(ent.type)) {
+        // Bounds Check for enemies
+        if ([EntityType.HELICOPTER, EntityType.SHIP, EntityType.BOAT, EntityType.SUBMARINE, EntityType.DESTROYER, EntityType.JET, EntityType.FIGHTER, EntityType.DRONE, EntityType.HOVERCRAFT].includes(ent.type)) {
             const b = getBounds(ent.y);
             if (ent.x < b.left + 10 || ent.x > b.right - 10) ent.vx *= -1;
         }
 
+        // Remove entities that fall off bottom screen
         if (ent.y < state.cameraY - 200) ent.active = false; 
 
-        // Collision
+        // Collision Detection
         const entScreenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
         const playerScreenY = state.player.y;
         
         // Player vs Entity
-        if (ent.type !== EntityType.BULLET && ent.type !== EntityType.BOSS_BULLET &&
+        if (ent.type !== EntityType.BULLET && ent.type !== EntityType.BOSS_BULLET && ent.type !== EntityType.WINGMAN &&
             Math.abs(state.player.x - ent.x) < (state.player.width + ent.width)/2 - 4 &&
             Math.abs(playerScreenY - entScreenY) < (state.player.height + ent.height)/2 - 4) {
             
@@ -1239,7 +1419,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
         // Player Bullet vs Entity
         if (ent.type === EntityType.BULLET) {
              state.entities.forEach(target => {
-                 if (!target.active || target === ent || target.type === EntityType.BULLET || target.type === EntityType.EXPLOSION || target.type === EntityType.BOSS_BULLET) return;
+                 if (!target.active || target === ent || target.type === EntityType.BULLET || target.type === EntityType.EXPLOSION || target.type === EntityType.BOSS_BULLET || target.type === EntityType.WINGMAN) return;
 
                  const targetScreenY = CANVAS_HEIGHT - (target.y - state.cameraY);
                  if (Math.abs(ent.x - target.x) < target.width/2 + 4 && Math.abs(ent.y - target.y) < target.height/2 + 4) {
@@ -1253,11 +1433,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                      } else if (target.type === EntityType.BOSS) {
                          soundRef.current?.bossHit();
                          target.hp = (target.hp || 0) - 1;
-                         state.particles.push({
-                             x: target.x + (Math.random()-0.5)*20, 
-                             y: target.y + (Math.random()-0.5)*20,
-                             vx: 0, vy: 0, life: 0.1, maxLife: 0.1, size: 4, color: '#fff', style: 'pixel'
-                         });
+                         createHitEffect(target.x, targetScreenY, '#fff'); 
 
                          if ((target.hp || 0) <= 0) {
                              target.active = false;
@@ -1289,15 +1465,22 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                      } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED, EntityType.ITEM_LIFE].includes(target.type)) {
                          // Safe
                      } else if (target.type === EntityType.FUEL_DEPOT) {
-                         // Do not destroy fuel depots with bullets, just like standard fuel (classic game logic usually allows destroying fuel for points, but here we want to use them).
                          // If user wants to destroy them:
                          target.active = false;
                          createExplosion(target.x, targetScreenY, '#22d3ee');
                          state.player.score += 300 * state.player.multiplier;
                      } else {
-                         target.active = false;
-                         createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
-                         state.player.score += (target.scoreValue || 50) * state.player.multiplier;
+                         // Logic for armored enemies
+                         if (target.hp && target.hp > 1) {
+                             target.hp -= 1;
+                             target.hitFlashTimer = 0.1; // Flash white for 100ms
+                             soundRef.current?.hit();
+                             createHitEffect(target.x, targetScreenY, '#fff');
+                         } else {
+                             target.active = false;
+                             createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
+                             state.player.score += (target.scoreValue || 50) * state.player.multiplier;
+                         }
                      }
                  }
              });
@@ -1322,6 +1505,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
     if (state.player.fuel <= 0) die();
     if (state.player.fuel < 25 && Math.random() < 0.05) soundRef.current?.lowFuel();
 
+    // Sync local state with React state for UI (throttled to approx 60fps anyway)
     if (Math.random() > 0.1) {
         let bossData = { bossName: '', bossHp: 0, bossMaxHp: 0 };
         if (activeBoss) {
@@ -1338,11 +1522,15 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
             gameOver: state.isGameOver,
             level: state.level,
             multiplier: state.player.multiplier,
+            sessionCoins: state.sessionCoins,
+            upgrades: { ...state.player.upgrades },
+            shieldActive: state.player.invulnerableTimer > 0,
             ...bossData
         }));
     }
   };
 
+  /** Handles player death sequence */
   const die = () => {
       if (state.player.isDead || state.player.invulnerableTimer > 0) return;
       soundRef.current?.stopBossMusic();
@@ -1370,8 +1558,20 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           } else {
               state.isGameOver = true;
               setHudState(s => ({...s, gameOver: true}));
+              
+              // Check High Score
+              const isHighScore = highScores.length < 10 || state.player.score > highScores[highScores.length - 1].score;
+              if (isHighScore) {
+                  setShowHighScoreInput(true);
+              }
           }
       }, 1500);
+  };
+
+  const handleHighScoreSubmit = () => {
+    if (highScoreInitials.length > 0) {
+        onGameEnd(state.player.score, highScoreInitials, state.sessionCoins);
+    }
   };
 
   // --- RENDERER ---
@@ -1401,12 +1601,14 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
 
       const cfg = LEVEL_CONFIGS[(state.level - 1) % LEVEL_CONFIGS.length];
 
+      // Draw Background
       ctx.fillStyle = cfg.colors.bg;
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
       const startY = Math.floor(state.cameraY / RIVER_SEGMENT_HEIGHT) * RIVER_SEGMENT_HEIGHT;
       const endY = startY + CANVAS_HEIGHT + RIVER_SEGMENT_HEIGHT;
       
+      // Draw River
       ctx.fillStyle = cfg.colors.water;
       ctx.beginPath();
       for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
@@ -1416,6 +1618,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
       }
       ctx.fill();
 
+      // Draw River Banks (Earth)
       ctx.fillStyle = cfg.colors.earth;
       for (let y = startY; y <= endY; y += RIVER_SEGMENT_HEIGHT) {
           const b = getBounds(y);
@@ -1424,6 +1627,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           ctx.fillRect(b.right, sy - RIVER_SEGMENT_HEIGHT, 5, RIVER_SEGMENT_HEIGHT + 2);
       }
 
+      // Draw Entities
       state.entities.forEach(ent => {
           if (!ent.active) return;
           const screenY = CANVAS_HEIGHT - (ent.y - state.cameraY);
@@ -1453,18 +1657,29 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
              ctx.translate(-ent.x, -screenY);
              drawSprite(ctx, bossCfg.sprite, ent.x, screenY, 4, bossCfg.color);
              ctx.restore();
+          } else if (ent.type === EntityType.WINGMAN) {
+             drawSprite(ctx, 'WINGMAN', ent.x, screenY, 2.5, '#22d3ee');
           } else {
               const def = SPAWN_REGISTRY[ent.type] || { color: '#fff' };
-              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER || ent.type === EntityType.FIGHTER;
-              if (isAir) drawSprite(ctx, ent.type, ent.x + 10, screenY + 10, 2.5, 'rgba(0,0,0,0.3)');
-              drawSprite(ctx, ent.type, ent.x, screenY, 2.5, def.color);
-              if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT || ent.type === EntityType.SUBMARINE || ent.type === EntityType.DESTROYER) {
+              const isAir = ent.type === EntityType.JET || ent.type === EntityType.HELICOPTER || ent.type === EntityType.BOMBER || ent.type === EntityType.FIGHTER || ent.type === EntityType.DRONE;
+              
+              // Hit Flash Logic
+              let color = def.color;
+              if (ent.hitFlashTimer && ent.hitFlashTimer > 0) {
+                  color = '#ffffff'; // Flash white
+              }
+
+              if (isAir) drawSprite(ctx, ent.type, ent.x + 10, screenY + 10, 2.5, 'rgba(0,0,0,0.3)'); // Shadow
+              drawSprite(ctx, ent.type, ent.x, screenY, 2.5, color);
+              
+              if (ent.type === EntityType.SHIP || ent.type === EntityType.BOAT || ent.type === EntityType.SUBMARINE || ent.type === EntityType.DESTROYER || ent.type === EntityType.HOVERCRAFT) {
                   ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                  ctx.fillRect(ent.x - 4, screenY + 10, 8, 4);
+                  ctx.fillRect(ent.x - 4, screenY + 10, 8, 4); // Water trail
               }
           }
       });
 
+      // Draw Player
       if (!state.player.isDead) {
           // Render Spawn Shield / Invulnerability Blink
           if (state.player.invulnerableTimer > 0) {
@@ -1487,6 +1702,7 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           }
       }
 
+      // Draw Particles
       state.particles.forEach(p => {
           if (p.style === 'shockwave') {
              ctx.beginPath();
@@ -1562,9 +1778,35 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
           />
           
           {/* HUD */}
-          <div className="absolute top-0 left-0 w-full p-2 flex justify-between font-mono text-white font-bold text-sm tracking-wider drop-shadow-md">
-              <div>SCORE {hudState.score.toString().padStart(6, '0')}</div>
-              <div>LIVES {hudState.lives}</div>
+          <div className="absolute top-0 left-0 w-full p-2 flex justify-between font-mono text-white font-bold text-sm tracking-wider drop-shadow-md pointer-events-none">
+              <div className="flex flex-col">
+                  <div>SCORE {hudState.score.toString().padStart(6, '0')}</div>
+                  <div className="text-xs text-slate-400">LIVES {hudState.lives}</div>
+              </div>
+              
+              {/* ACTIVE POWERUPS */}
+              <div className="flex flex-col items-end gap-1">
+                 {hudState.shieldActive && (
+                    <div className="flex items-center gap-1 text-cyan-400 bg-slate-900/50 px-1 rounded">
+                       <div className="w-2 h-2 rounded-full border border-current"></div> SHIELD
+                    </div>
+                 )}
+                 {hudState.upgrades.spread && (
+                    <div className="flex items-center gap-1 text-yellow-400 bg-slate-900/50 px-1 rounded">
+                       <div className="text-[8px] font-bold">[W]</div> SPREAD
+                    </div>
+                 )}
+                 {hudState.upgrades.rapid && (
+                    <div className="flex items-center gap-1 text-orange-400 bg-slate-900/50 px-1 rounded">
+                       <div className="text-[8px] font-bold">>>></div> RAPID
+                    </div>
+                 )}
+                 {hudState.upgrades.speed && (
+                    <div className="flex items-center gap-1 text-blue-400 bg-slate-900/50 px-1 rounded">
+                       <div className="text-[8px] font-bold">SPD</div> SPEED
+                    </div>
+                 )}
+              </div>
           </div>
 
            {/* BOSS BAR */}
@@ -1605,17 +1847,54 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                 FUEL
               </div>
           </div>
+          
+          {/* COIN NOTIFICATION */}
+          {hudState.sessionCoins > 0 && !hudState.gameOver && (
+              <div className="absolute top-1/2 right-4 -translate-y-1/2 flex flex-col items-end opacity-80 pointer-events-none">
+                 <div className="text-yellow-400 font-bold text-xs mb-1">SESSION LOOT</div>
+                 <div className="bg-yellow-500 text-black font-black px-2 py-1 rounded text-sm flex items-center gap-1">
+                   <span>+{hudState.sessionCoins}</span>
+                   <div className="w-2 h-2 rounded-full bg-black"></div>
+                 </div>
+              </div>
+          )}
 
           {hudState.gameOver && (
               <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center space-y-4 animate-fade-in z-50">
                   <h2 className="text-5xl font-black text-red-600 tracking-widest animate-bounce drop-shadow-[2px_2px_0_#fff]">GAME OVER</h2>
                   <div className="text-2xl text-white font-mono animate-pulse">FINAL SCORE: {hudState.score}</div>
-                  <button 
-                    onClick={onExit}
-                    className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl uppercase tracking-wide rounded shadow-[0_4px_0_#a16207] active:translate-y-1 active:shadow-none transition-all"
-                  >
-                      RETURN TO BASE
-                  </button>
+                  
+                  {showHighScoreInput ? (
+                      <div className="bg-blue-900/80 p-4 border-2 border-blue-500 rounded flex flex-col items-center gap-4 animate-pulse">
+                          <div className="text-yellow-400 font-black text-xl">NEW HIGH SCORE!</div>
+                          <div className="text-sm text-white">ENTER INITIALS:</div>
+                          <input 
+                            type="text" 
+                            maxLength={3}
+                            value={highScoreInitials}
+                            onChange={(e) => setHighScoreInitials(e.target.value.toUpperCase())}
+                            className="bg-black text-white font-mono text-3xl w-24 text-center border-b-2 border-white outline-none"
+                            autoFocus
+                          />
+                          <button 
+                             onClick={handleHighScoreSubmit}
+                             disabled={highScoreInitials.length < 3}
+                             className="px-4 py-2 bg-green-600 text-white font-bold rounded disabled:opacity-50"
+                          >
+                             SUBMIT
+                          </button>
+                      </div>
+                  ) : (
+                      <>
+                        <div className="text-yellow-500 font-mono text-sm">COINS EARNED: {hudState.sessionCoins}</div>
+                        <button 
+                            onClick={() => onGameEnd(hudState.score, null, hudState.sessionCoins)}
+                            className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl uppercase tracking-wide rounded shadow-[0_4px_0_#a16207] active:translate-y-1 active:shadow-none transition-all"
+                        >
+                            RETURN TO BASE
+                        </button>
+                      </>
+                  )}
               </div>
           )}
       </div>

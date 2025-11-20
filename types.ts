@@ -1,4 +1,7 @@
-
+/**
+ * Enumeration of all entity types in the game.
+ * Used for rendering, collision logic, and spawning.
+ */
 export enum EntityType {
   PLAYER = 'PLAYER',
   HELICOPTER = 'HELICOPTER',
@@ -45,26 +48,36 @@ export enum EntityType {
   PALM = 'PALM',
   BUNKER = 'BUNKER',
   PIER = 'PIER',
-  FUEL_DEPOT = 'FUEL_DEPOT'
+  FUEL_DEPOT = 'FUEL_DEPOT',
+  WINGMAN = 'WINGMAN',
+  DRONE = 'DRONE',
+  HOVERCRAFT = 'HOVERCRAFT'
 }
 
+/**
+ * Base interface for all game objects (enemies, bullets, scenery).
+ */
 export interface Entity {
   id: number;
   type: EntityType;
-  x: number; // 0 to 100 (percent of river width mostly, but game logic uses virtual pixels)
-  y: number; // world Y coordinate
+  x: number; // Horizontal position
+  y: number; // Vertical world position
   width: number;
   height: number;
-  vx: number;
-  vy: number;
-  active: boolean;
-  frame: number; // For animation
-  scoreValue?: number;
-  hp?: number;
-  maxHp?: number;
-  bossId?: number; // 0-9 for the 10 bosses
+  vx: number; // Horizontal velocity
+  vy: number; // Vertical velocity
+  active: boolean; // If false, entity is removed
+  frame: number; // Animation frame
+  scoreValue?: number; // Points awarded for destruction
+  hp?: number; // Health points (for bosses/armored units)
+  maxHp?: number; // Max HP for UI
+  bossId?: number; // 0-9 index for specific boss config
+  hitFlashTimer?: number; // Time remaining for visual hit feedback
 }
 
+/**
+ * Specialized interface for the player's character.
+ */
 export interface Player {
   id: number;
   type: EntityType;
@@ -74,8 +87,8 @@ export interface Player {
   height: number;
   vx: number;
   vy: number;
-  fuel: number;
-  speed: number; // vertical speed relative to map scroll
+  fuel: number; // 0-100
+  speed: number; // Vertical scroll speed
   active: boolean;
   isDead: boolean;
   score: number;
@@ -85,29 +98,35 @@ export interface Player {
     rapid: boolean;
     speed: boolean;
   };
-  invulnerableTimer: number;
-  multiplier: number;
+  invulnerableTimer: number; // Seconds remaining
+  multiplier: number; // Current score multiplier
   frame: number;
 }
 
+/**
+ * Interface for visual effects (explosions, smoke, sparkles).
+ */
 export interface Particle {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  life: number;
+  life: number; // Remaining life in seconds
   maxLife: number;
   color: string;
   size: number;
   style: 'pixel' | 'smoke' | 'shockwave';
 }
 
+/**
+ * Global game state container.
+ */
 export interface GameState {
   player: Player;
   entities: Entity[];
   particles: Particle[];
-  cameraY: number;
-  riverSeed: number;
+  cameraY: number; // Vertical camera position
+  riverSeed: number; // Random seed for procedural river gen
   isGameOver: boolean;
   isPaused: boolean;
   lastShotTime: number;
@@ -116,4 +135,15 @@ export interface GameState {
   distanceInLevel: number;
   multiplierDistance: number;
   bossActive: boolean;
+  gameTime: number; // Total session time in seconds
+  sessionCoins: number; // Coins earned in current session
+}
+
+/**
+ * Interface for leaderboard entries.
+ */
+export interface HighScore {
+  name: string; // Initials
+  score: number;
+  date: string;
 }
