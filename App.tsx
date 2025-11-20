@@ -193,7 +193,7 @@ const App: React.FC = () => {
 
                  <div className="text-center space-y-4">
                     <div className="p-4 bg-black/40 border border-slate-600 rounded text-left font-mono text-xs md:text-sm text-slate-300 leading-relaxed">
-                      <p className="text-yellow-400 font-bold mb-2">>> MISSION DIRECTIVE:</p>
+                      <p className="text-yellow-400 font-bold mb-2">{'>>'} MISSION DIRECTIVE:</p>
                       <p>1. PENETRATE ENEMY DEFENSES.</p>
                       <p>2. EARN <span className="text-yellow-400">1 COIN</span> PER MINUTE.</p>
                       <p>3. <span className="text-cyan-400">WINGMAN</span> DOUBLES COIN EARNINGS.</p>

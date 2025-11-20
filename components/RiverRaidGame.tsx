@@ -1798,7 +1798,7 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
                  )}
                  {hudState.upgrades.rapid && (
                     <div className="flex items-center gap-1 text-orange-400 bg-slate-900/50 px-1 rounded">
-                       <div className="text-[8px] font-bold">>>></div> RAPID
+                       <div className="text-[8px] font-bold">{'>>>'}</div> RAPID
                     </div>
                  )}
                  {hudState.upgrades.speed && (
