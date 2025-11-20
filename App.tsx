@@ -68,7 +68,7 @@ const App: React.FC = () => {
           <div className="bg-slate-800/90 border-4 border-slate-200 p-6 rounded-sm shadow-[8px_8px_0_rgba(0,0,0,0.5)] w-full max-w-md backdrop-blur-sm relative z-10">
              <div className="text-center space-y-4">
                 <div className="p-4 bg-black/40 border border-slate-600 rounded text-left font-mono text-xs md:text-sm text-slate-300 leading-relaxed">
-                  <p className="text-yellow-400 font-bold mb-2">>> MISSION DIRECTIVE:</p>
+                  <p className="text-yellow-400 font-bold mb-2">{'>>'} MISSION DIRECTIVE:</p>
                   <p>1. PENETRATE ENEMY RIVER DEFENSES.</p>
                   <p>2. NEUTRALIZE HOSTILES: <span className="text-red-400">JETS, CHOPPERS, SUBS</span>.</p>
                   <p>3. MONITOR FUEL LEVELS. REFUEL AT <span className="text-pink-400">CANISTERS</span>.</p>
