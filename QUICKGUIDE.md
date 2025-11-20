@@ -113,35 +113,109 @@ The game will start at `http://localhost:3000`
 
 ### Mission Objective
 
-Navigate your fighter jet down a dangerous river while destroying enemies and managing your fuel.
+Navigate your fighter jet through a dangerous, procedurally-generated river while:
+- **Destroying enemies** for points and coins
+- **Managing your fuel** to stay airborne
+- **Avoiding obstacles** to survive
+- **Defeating bosses** to progress
+- **Earning Bravery Coins** to unlock features
 
 ### Game Elements
 
 #### Enemies
 
-- **🛩️ Enemy Jets** - Flying hostile aircraft
-- **🚁 Helicopters** - Hovering threats
-- **🚢 Submarines** - Water-based enemies
-- **💀 Boss** - Appears at the end of the river
+- **🛩️ Enemy Jets** - Fast-flying hostile aircraft (200 pts)
+- **🚁 Helicopters** - Hovering threats (100 pts)
+- **🚢 Ships** - Slow water-based enemies (150 pts)
+- **🎯 Submarines** - Submerge and surface (250 pts)
+- **🛡️ Tanks** - Ground-based, fire projectiles (300 pts)
+- **🌉 Bridges** - Destroy for checkpoints (500 pts)
+- **💀 Bosses** - Appear periodically with unique attacks (1000+ pts)
 
-#### Power-ups
+#### Power-Ups & Collectibles
 
-- **🟣 Fuel Canisters** - Refuel your aircraft
-- **⭐ Bonus Items** - Extra points
+**Weapon Upgrades:**
+- **🔵 Spread Shot [W]** - Fire 3 bullets in a fan pattern
+- **🔴 Rapid Fire [>>>]** - Significantly increased firing rate
+- **🟢 Speed Shot [SPD]** - Bullets travel much faster
+
+**Defensive Items:**
+- **🛡️ Shield** - Temporary invulnerability (10-20 seconds)
+- **❤️ Extra Life** - Gain an additional aircraft
+
+**Fuel & Resources:**
+- **⛽ Fuel Canisters** (Pink/Red) - Restore 20-30% fuel
+- **🏪 Fuel Depots** (Blue) - Instant 100% refill
+- **💰 Coin Items** - Bonus Bravery Coins
+
+#### Currency System: Bravery Coins
+
+**Earning Coins:**
+- **1 coin per minute** of survival (base rate)
+- **2 coins per minute** when playing with Wingman
+- Coins persist across all games
+- Displayed in top-right corner
+
+**Using Coins:**
+- **Wingman Purchase** - 5 coins per game session
+- Unlock AI companion that fights alongside you
+- Doubles your coin earning rate
 
 ### Gameplay Tips
 
-1. **Watch Your Fuel** - Always monitor the fuel gauge
-2. **Collect Fuel Depots** - Fly over pink fuel canisters to refuel
-3. **Avoid Collisions** - Don't hit riverbanks or enemies
-4. **Strategic Shooting** - Destroy enemies before they reach you
-5. **Boss Strategy** - The final boss requires multiple hits
+1. **Watch Your Fuel** - Monitor the fuel gauge constantly; running out = instant crash
+2. **Collect Fuel Strategically** - Aim for pink canisters; blue depots give instant refills
+3. **Avoid Collisions** - River banks, enemies, and obstacles are instantly fatal
+4. **Strategic Shooting** - Destroy enemies before they reach you; prioritize threats
+5. **Power-Up Management** - Save rapid fire and spread shot for bosses or dense enemy sections
+6. **Use Your Shield Wisely** - Shield is best for navigating dangerous narrow passages
+7. **Boss Strategy** - Bosses require many hits; keep moving and dodge their attack patterns
+8. **Stay Centered** - Keep to the middle of the river for maximum maneuverability
+9. **Earn Coins** - Survive longer to earn more coins for Wingman purchases
+10. **Wingman Investment** - Spend 5 coins for AI companion that doubles coin earnings
 
-### Scoring
+### Wingman Feature
 
-- Destroying enemies: +100 points
-- Collecting items: +50 points
-- Surviving longer: +distance bonus
+**What is the Wingman?**
+- AI-controlled companion drone
+- Automatically targets and shoots enemies
+- Flies alongside your aircraft
+- Costs 5 Bravery Coins per game
+
+**Benefits:**
+- Extra firepower for free
+- Doubles coin earning (2 coins/min vs 1 coin/min)
+- Especially helpful for boss battles
+- Pays for itself in 5 minutes of survival
+
+**How to Activate:**
+1. Earn at least 5 Bravery Coins
+2. Before starting game, toggle "Hire Wingman" option
+3. Click "Start Game" with Wingman active
+4. AI companion will appear and assist throughout the game
+
+### Scoring System
+
+**Point Values:**
+- **Helicopters**: 100 points
+- **Ships**: 150 points
+- **Jets**: 200 points
+- **Submarines**: 250 points
+- **Tanks**: 300 points
+- **Bridges**: 500 points
+- **Bosses**: 1000-5000 points
+- **Collectibles**: 50-100 points
+- **Distance**: Continuous bonus
+
+**Score Multipliers:**
+- Consecutive kills increase your multiplier (up to 5x)
+- Perfect sections (no damage) give bonus points
+- Survival time adds continuous score
+
+**High Scores:**
+- Top 10 scores saved locally
+- Leaderboard displayed on main menu
+- Your best scores persist across sessions
 
 ---
 

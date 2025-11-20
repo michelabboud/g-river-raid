@@ -283,13 +283,59 @@ npm install
 
 ---
 
+## Project Structure
+
+After installation, your project structure will look like this:
+
+```
+g-river-raid/
+├── components/              # React components
+│   ├── RiverRaidGame.tsx   # Main game engine and logic
+│   ├── VirtualJoystick.tsx # Mobile touch joystick
+│   ├── ShootButton.tsx     # Mobile fire button
+│   └── FullscreenButton.tsx# Fullscreen toggle
+├── utils/                   # Utility functions
+│   └── mobile.ts           # Mobile device detection
+├── App.tsx                  # Main app component with menu
+├── index.tsx                # React entry point
+├── types.ts                 # TypeScript type definitions
+├── index.html               # HTML entry point
+├── vite.config.ts           # Vite configuration
+├── tsconfig.json            # TypeScript configuration
+├── package.json             # Dependencies and scripts
+├── install.sh               # Installation script
+├── deploy.sh                # Deployment script
+├── README.md                # Project overview
+├── QUICKGUIDE.md            # Quick start guide
+├── INSTALL.md               # This file
+└── GUIDE.md                 # Detailed gameplay guide
+```
+
 ## Next Steps
 
 Once installation is complete:
 
-1. Read the [Quick Start Guide](QUICKGUIDE.md) to learn how to run and play the game
-2. Run the development server: `npm run dev` or `./deploy.sh dev`
-3. Start playing at `http://localhost:3000`
+1. **Read the guides**:
+   - [Quick Start Guide](QUICKGUIDE.md) - Learn how to run and play
+   - [Game Guide](GUIDE.md) - Detailed gameplay mechanics
+   - [README.md](README.md) - Project overview
+
+2. **Run the development server**:
+   ```bash
+   npm run dev
+   # Or using the deploy script
+   ./deploy.sh dev
+   ```
+
+3. **Open your browser**:
+   - Navigate to `http://localhost:3000`
+   - On mobile: Use your device's browser
+
+4. **Start playing**:
+   - Click "Insert Coin" to begin
+   - Use arrow keys or WASD to move
+   - Press SPACE to fire
+   - Have fun!
 
 ---
 
