@@ -44,7 +44,8 @@ export enum EntityType {
   WRECK = 'WRECK',
   PALM = 'PALM',
   BUNKER = 'BUNKER',
-  PIER = 'PIER'
+  PIER = 'PIER',
+  FUEL_DEPOT = 'FUEL_DEPOT'
 }
 
 export interface Entity {

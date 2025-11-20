@@ -253,6 +253,16 @@ const SPRITES: Record<string, number[][]> = {
     [1,1,1,1,1],
     [0,1,1,1,0]
   ],
+  FUEL_DEPOT: [
+    [0,1,1,1,1,1,1,0],
+    [1,1,0,0,0,0,1,1],
+    [1,0,1,1,1,1,0,1],
+    [1,0,1,0,0,1,0,1],
+    [1,0,1,1,1,1,0,1],
+    [1,0,1,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,0]
+  ],
   MINE: [
     [1,0,0,0,1],
     [0,1,1,1,0],
@@ -362,7 +372,8 @@ const SPAWN_REGISTRY: Partial<Record<EntityType, EntityDef>> = {
   [EntityType.TANK]: { width: 18, height: 14, score: 150, color: '#57534e', ground: true },
   [EntityType.TURRET]: { width: 16, height: 16, score: 150, color: '#dc2626', ground: true },
   [EntityType.RADAR]: { width: 14, height: 14, score: 200, color: '#a3a3a3', ground: true },
-  [EntityType.FUEL]: { width: 16, height: 25, score: 80, color: '#d946ef' }, 
+  [EntityType.FUEL]: { width: 16, height: 25, score: 80, color: '#d946ef' },
+  [EntityType.FUEL_DEPOT]: { width: 24, height: 20, score: 0, color: '#22d3ee' }, 
   [EntityType.MINE]: { width: 14, height: 14, score: 200, color: '#18181b' },
   [EntityType.ROCK]: { width: 20, height: 16, score: 0, color: '#525252', obstacle: true },
   [EntityType.BRIDGE]: { width: 320, height: 24, score: 500, color: '#fbbf24' },
@@ -406,7 +417,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     spawnRate: 0.15,
     pool: { 
       [EntityType.HELICOPTER]: 25, [EntityType.SHIP]: 20, [EntityType.BOAT]: 15, 
-      [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 5, [EntityType.FUEL]: 30, 
+      [EntityType.SUBMARINE]: 10, [EntityType.DESTROYER]: 5, [EntityType.FUEL]: 25, 
+      [EntityType.FUEL_DEPOT]: 5,
       [EntityType.ROCK]: 10, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5,
       [EntityType.ITEM_RAPID]: 2, [EntityType.ITEM_REGEN]: 2, 
       [EntityType.ITEM_SPEED]: 2, [EntityType.BRIDGE]: 3 
@@ -417,7 +429,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     spawnRate: 0.18,
     pool: { 
       [EntityType.HELICOPTER]: 15, [EntityType.JET]: 20, [EntityType.SHIP]: 15, 
-      [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 30, 
+      [EntityType.DESTROYER]: 10, [EntityType.SUBMARINE]: 15, [EntityType.FUEL]: 25,
+      [EntityType.FUEL_DEPOT]: 5,
       [EntityType.ROCK]: 15, [EntityType.BUOY]: 5, [EntityType.WRECK]: 5, 
       [EntityType.FIGHTER]: 10, [EntityType.ITEM_SPREAD]: 3, 
       [EntityType.ITEM_SHIELD]: 2, [EntityType.ITEM_REGEN]: 2, [EntityType.ITEM_SPEED]: 3,
@@ -430,7 +443,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.JET]: 25, [EntityType.BOMBER]: 10, [EntityType.MINE]: 30, 
       [EntityType.SUBMARINE]: 15, [EntityType.DESTROYER]: 10, [EntityType.FIGHTER]: 15,
-      [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, [EntityType.BUOY]: 10,
+      [EntityType.FUEL]: 25, [EntityType.FUEL_DEPOT]: 5,
+      [EntityType.ROCK]: 20, [EntityType.BUOY]: 10,
       [EntityType.ITEM_RAPID]: 3, [EntityType.ITEM_SHIELD]: 3, [EntityType.ITEM_SPEED]: 3, 
       [EntityType.BRIDGE]: 4, [EntityType.ITEM_LIFE]: 1
     }
@@ -441,7 +455,8 @@ const LEVEL_CONFIGS: LevelConfig[] = [
     pool: { 
       [EntityType.JET]: 20, [EntityType.BOMBER]: 15, [EntityType.MINE]: 30, 
       [EntityType.HELICOPTER]: 10, [EntityType.FIGHTER]: 20, [EntityType.SUBMARINE]: 15, 
-      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 30, [EntityType.ROCK]: 20, 
+      [EntityType.DESTROYER]: 15, [EntityType.FUEL]: 25, [EntityType.FUEL_DEPOT]: 5,
+      [EntityType.ROCK]: 20, 
       [EntityType.WRECK]: 10, [EntityType.ITEM_SPREAD]: 5, [EntityType.ITEM_RAPID]: 5, 
       [EntityType.ITEM_REGEN]: 3, [EntityType.ITEM_SPEED]: 3, [EntityType.BRIDGE]: 5, 
       [EntityType.ITEM_LIFE]: 1
@@ -1184,6 +1199,10 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                 state.player.fuel = Math.min(100, state.player.fuel + 40 * dt);
                 if (Math.random() > 0.8) soundRef.current?.refuel();
                 if (state.player.multiplier > 1) { state.player.multiplier = 1; state.multiplierDistance = 0; }
+            } else if (ent.type === EntityType.FUEL_DEPOT) {
+                state.player.fuel = 100; // Instant refill
+                soundRef.current?.oneUp(); // Distinct sound
+                if (state.player.multiplier > 1) { state.player.multiplier = 1; state.multiplierDistance = 0; }
             } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED, EntityType.ITEM_LIFE].includes(ent.type)) {
                 ent.active = false;
                 
@@ -1269,6 +1288,12 @@ const RiverRaidGame: React.FC<Props> = ({ onExit }) => {
                          }
                      } else if ([EntityType.ITEM_SPREAD, EntityType.ITEM_RAPID, EntityType.ITEM_SHIELD, EntityType.ITEM_REGEN, EntityType.ITEM_SPEED, EntityType.ITEM_LIFE].includes(target.type)) {
                          // Safe
+                     } else if (target.type === EntityType.FUEL_DEPOT) {
+                         // Do not destroy fuel depots with bullets, just like standard fuel (classic game logic usually allows destroying fuel for points, but here we want to use them).
+                         // If user wants to destroy them:
+                         target.active = false;
+                         createExplosion(target.x, targetScreenY, '#22d3ee');
+                         state.player.score += 300 * state.player.multiplier;
                      } else {
                          target.active = false;
                          createExplosion(target.x, targetScreenY, SPAWN_REGISTRY[target.type]?.color || '#fff');
