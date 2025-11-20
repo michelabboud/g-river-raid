@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Entity, EntityType, GameState, Player, HighScore } from '../types';
+import { VirtualJoystick } from './VirtualJoystick';
+import { ShootButton } from './ShootButton';
+import { isMobileDevice, getCanvasScale } from '../utils/mobile';
 
 // --- CONSTANTS ---
 const CANVAS_WIDTH = 320;
@@ -784,6 +787,14 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
   
   const keys = useRef<{ [key: string]: boolean }>({});
   const soundRef = useRef<SoundEngine | null>(null);
+
+  // Touch controls state
+  const touchDirection = useRef<{ up: boolean; down: boolean; left: boolean; right: boolean }>({
+    up: false, down: false, left: false, right: false
+  });
+  const touchShooting = useRef<boolean>(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [canvasScale, setCanvasScale] = useState(1.5);
   
   // Main Game State
   const gameState = useRef<GameState>({
@@ -1152,17 +1163,23 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     }
 
     // --- PLAYER CONTROLS ---
-    if (keys.current['ArrowLeft'] || keys.current['a']) state.player.vx = -PLAYER_SPEED_X;
-    else if (keys.current['ArrowRight'] || keys.current['d']) state.player.vx = PLAYER_SPEED_X;
-    else state.player.vx = 0;
+    // Horizontal movement (keyboard + touch)
+    if (keys.current['ArrowLeft'] || keys.current['a'] || touchDirection.current.left) {
+        state.player.vx = -PLAYER_SPEED_X;
+    } else if (keys.current['ArrowRight'] || keys.current['d'] || touchDirection.current.right) {
+        state.player.vx = PLAYER_SPEED_X;
+    } else {
+        state.player.vx = 0;
+    }
 
     let targetScroll = MIN_SCROLL_SPEED * 1.5;
     let moveY = 0;
 
-    if (keys.current['ArrowUp'] || keys.current['w']) {
+    // Vertical movement (keyboard + touch)
+    if (keys.current['ArrowUp'] || keys.current['w'] || touchDirection.current.up) {
         targetScroll = MAX_SCROLL_SPEED;
-        moveY = -PLAYER_SPEED_Y; 
-    } else if (keys.current['ArrowDown'] || keys.current['s']) {
+        moveY = -PLAYER_SPEED_Y;
+    } else if (keys.current['ArrowDown'] || keys.current['s'] || touchDirection.current.down) {
         targetScroll = MIN_SCROLL_SPEED;
         moveY = PLAYER_SPEED_Y;
     }
@@ -1200,7 +1217,8 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     const fireDelay = state.player.upgrades.rapid ? 150 : 300;
     const bulletSpeed = state.player.upgrades.speed ? UPGRADED_BULLET_SPEED : BASE_BULLET_SPEED;
 
-    if (keys.current[' '] && Date.now() - state.lastShotTime > fireDelay) {
+    // Check both keyboard space and touch shooting
+    if ((keys.current[' '] || touchShooting.current) && Date.now() - state.lastShotTime > fireDelay) {
         state.lastShotTime = Date.now();
         soundRef.current?.shoot();
         
@@ -1737,6 +1755,20 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
       requestRef.current = requestAnimationFrame(loop);
   };
 
+  // Detect mobile and set canvas scale
+  useEffect(() => {
+    const mobile = isMobileDevice();
+    setIsMobile(mobile);
+    setCanvasScale(getCanvasScale());
+
+    const handleResize = () => {
+      setCanvasScale(getCanvasScale());
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
           if (e.key.toLowerCase() === 'p') {
@@ -1773,8 +1805,11 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
             ref={canvasRef}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
-            className="bg-black shadow-2xl scale-[1.5] origin-center border-4 border-zinc-800"
-            style={{ imageRendering: 'pixelated' }}
+            className="bg-black shadow-2xl origin-center border-4 border-zinc-800"
+            style={{
+              imageRendering: 'pixelated',
+              transform: `scale(${canvasScale})`
+            }}
           />
           
           {/* HUD */}
@@ -1896,6 +1931,22 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
                       </>
                   )}
               </div>
+          )}
+
+          {/* Touch Controls - Only on Mobile */}
+          {isMobile && (
+            <>
+              <VirtualJoystick
+                onDirectionChange={(direction) => {
+                  touchDirection.current = direction;
+                }}
+              />
+              <ShootButton
+                onShoot={(shooting) => {
+                  touchShooting.current = shooting;
+                }}
+              />
+            </>
           )}
       </div>
     </div>
