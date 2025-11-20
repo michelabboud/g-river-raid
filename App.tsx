@@ -115,7 +115,7 @@ const App: React.FC = () => {
       `}</style>
 
       {!gameStarted ? (
-        <div className="relative w-full max-w-2xl p-8 flex flex-col items-center space-y-8 z-10">
+        <div className="relative w-full max-w-2xl p-8 flex flex-col items-center space-y-8 z-10" style={{ transform: 'scale(0.95)' }}>
            {/* Retro Background Pattern */}
            <div className="absolute inset-0 z-[-1] opacity-20" 
                 style={{ 
