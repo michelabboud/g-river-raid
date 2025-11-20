@@ -1164,8 +1164,8 @@ const RiverRaidGame: React.FC<Props> = ({ hasWingman, highScores, onGameEnd, onE
     }
 
     // --- PLAYER CONTROLS ---
-    // Touch controls are 50% speed for better control
-    const TOUCH_SPEED_MULTIPLIER = 0.5;
+    // Touch controls are 55% speed for better control
+    const TOUCH_SPEED_MULTIPLIER = 0.55;
 
     // Horizontal movement (keyboard + touch)
     const usingTouchHorizontal = touchDirection.current.left || touchDirection.current.right;
