@@ -31,6 +31,7 @@
 import React, { useState, useEffect } from 'react';
 import RiverRaidGame from './components/RiverRaidGame';
 import { HighScore } from './types';
+import { Analytics } from '@vercel/analytics/react';
 
 // Cost in Bravery Coins to hire the Wingman AI companion for one game session
 const WINGMAN_COST = 5;
@@ -279,6 +280,7 @@ const App: React.FC = () => {
           onGameEnd={handleGameEnd} 
         />
       )}
+      <Analytics />
     </div>
   );
 };
