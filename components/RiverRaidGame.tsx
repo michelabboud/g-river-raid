@@ -1,3 +1,68 @@
+/**
+ * River Raid - Main Game Engine Component
+ *
+ * This is the core game engine that handles all gameplay logic, rendering,
+ * physics, collision detection, AI, and user input for River Raid.
+ *
+ * Architecture Overview:
+ * =====================
+ * This file contains the complete game implementation in a single component.
+ * While large (~2000 lines), this structure keeps all game logic cohesive
+ * and easy to follow for a retro arcade game.
+ *
+ * Major Systems:
+ * --------------
+ * 1. **Game Loop**: 60 FPS update/render cycle using requestAnimationFrame
+ * 2. **Entity System**: Manages all game objects (player, enemies, bullets, items)
+ * 3. **Collision Detection**: AABB (box) collision for all entities
+ * 4. **Procedural Generation**: River segments and enemy spawning
+ * 5. **AI System**: Enemy behavior patterns and boss attack logic
+ * 6. **Particle System**: Visual effects for explosions and impacts
+ * 7. **Input Handling**: Keyboard, touch controls, and mobile joystick
+ * 8. **Rendering**: Canvas 2D pixel-perfect sprite rendering
+ * 9. **Audio**: (Future enhancement - currently visual-only)
+ * 10. **Wingman AI**: Autonomous companion drone
+ *
+ * Game Flow:
+ * ----------
+ * 1. Initialize game state (player, camera, river, etc.)
+ * 2. Start game loop (update physics, check collisions, render)
+ * 3. Spawn enemies and items based on distance traveled
+ * 4. Handle player input (movement, shooting)
+ * 5. Update all entities (position, animation, AI)
+ * 6. Check win/loss conditions
+ * 7. On game over, save score and return to menu
+ *
+ * Key Concepts:
+ * -------------
+ * - **World Space vs Screen Space**: Entities have world Y coordinates that scroll
+ * - **Camera System**: cameraY tracks vertical position, entities are rendered relative to it
+ * - **Entity Pooling**: Inactive entities are recycled to avoid garbage collection
+ * - **Procedural River**: Uses seeded random function for consistent generation
+ * - **Difficulty Scaling**: Enemy spawn rate and speed increase with level
+ * - **Power-Up System**: Temporary weapon upgrades (spread, rapid, speed)
+ * - **Fuel Management**: Constant depletion, must collect fuel to survive
+ * - **Score Multiplier**: Increases with consecutive kills, resets on hit
+ * - **Boss Battles**: Special encounters with unique attack patterns
+ *
+ * Performance Optimizations:
+ * -------------------------
+ * - Entity culling (off-screen entities aren't processed)
+ * - Dirty rectangle rendering (future enhancement)
+ * - Sprite pre-rendering to offscreen canvas
+ * - Collision grid (future enhancement for large entity counts)
+ *
+ * Mobile Support:
+ * ---------------
+ * - Touch controls via virtual joystick and fire button
+ * - Responsive canvas scaling
+ * - Fullscreen API integration
+ * - Touch-specific UI elements
+ *
+ * @module components/RiverRaidGame
+ * @description Core game engine handling all gameplay, rendering, and logic
+ */
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Entity, EntityType, GameState, Player, HighScore } from '../types';
 import { VirtualJoystick } from './VirtualJoystick';
@@ -5,7 +70,10 @@ import { ShootButton } from './ShootButton';
 import { FullscreenButton } from './FullscreenButton';
 import { isMobileDevice, getCanvasScale } from '../utils/mobile';
 
-// --- CONSTANTS ---
+// ============================================================================
+// CONSTANTS & CONFIGURATION
+// ============================================================================
+// Game tuning parameters and constants used throughout the game logic
 const CANVAS_WIDTH = 320;
 const CANVAS_HEIGHT = 480;
 const PLAYER_SPEED_X = 190;
@@ -25,9 +93,38 @@ const LEVEL_LENGTH = 4000;
 const WINGMAN_OFFSET_X = 35;
 const WINGMAN_OFFSET_Y = 20;
 
-// --- SPRITE DEFINITIONS ---
-// Binary arrays representing pixel art for each entity type.
-// 1 = filled pixel, 0 = transparent.
+// ============================================================================
+// SPRITE DEFINITIONS
+// ============================================================================
+/**
+ * Pixel Art Sprite Data
+ *
+ * Each sprite is defined as a 2D binary array where:
+ * - 1 = filled pixel (rendered in entity's color)
+ * - 0 = transparent pixel (not rendered)
+ *
+ * Sprites are hand-crafted pixel art in the style of classic arcade games.
+ * They are rendered at runtime using canvas drawing operations.
+ *
+ * Sprite Categories:
+ * - Player & Allies: PLAYER, WINGMAN
+ * - Flying Enemies: HELICOPTER, JET, BOMBER, FIGHTER, DRONE
+ * - Water Enemies: SHIP, SUBMARINE, DESTROYER, BOAT, HOVERCRAFT
+ * - Ground Enemies: TANK, TURRET
+ * - Obstacles: BRIDGE, MINE
+ * - Scenery: HOUSE, TREE, ROCK, etc.
+ * - Items: FUEL, power-ups (ITEM_*)
+ * - Bosses: BOSS (with multiple variants)
+ *
+ * Example sprite structure:
+ * [
+ *   [0,0,1,0,0],  // Row 1 (top)
+ *   [0,1,1,1,0],  // Row 2
+ *   [1,1,1,1,1],  // Row 3 (middle)
+ *   [0,1,1,1,0],  // Row 4
+ *   [0,0,1,0,0]   // Row 5 (bottom)
+ * ]
+ */
 const SPRITES: Record<string, number[][]> = {
   PLAYER: [
     [0,0,0,1,0,0,0],

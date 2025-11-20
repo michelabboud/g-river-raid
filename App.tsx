@@ -1,12 +1,48 @@
+/**
+ * River Raid - Main Application Component
+ *
+ * This is the root component of the River Raid game application.
+ * It manages the global application state and controls the flow between
+ * the main menu and the game itself.
+ *
+ * Key Responsibilities:
+ * - Display and manage the main menu UI with retro arcade styling
+ * - Handle high score persistence via localStorage
+ * - Manage the "Bravery Coins" currency system
+ * - Control Wingman (AI companion) feature purchases
+ * - Toggle between menu and active gameplay
+ * - Process game session results and update persistent data
+ *
+ * Game Flow:
+ * 1. User sees main menu with options and high scores
+ * 2. User can optionally purchase Wingman for 5 coins
+ * 3. User clicks "LAUNCH" to start game
+ * 4. Game runs until player loses all lives
+ * 5. Game ends, coins are awarded, high score is processed
+ * 6. Return to main menu
+ *
+ * Persistent Data (localStorage):
+ * - river_raid_coins: Total Bravery Coins earned across all sessions
+ * - river_raid_highscores: Top 10 high scores with initials and dates
+ *
+ * @module App
+ */
+
 import React, { useState, useEffect } from 'react';
 import RiverRaidGame from './components/RiverRaidGame';
 import { HighScore } from './types';
 
+// Cost in Bravery Coins to hire the Wingman AI companion for one game session
 const WINGMAN_COST = 5;
 
 /**
  * Main Application Component
+ *
  * Manages the global game state, including coins, high scores, and the main menu UI.
+ * Handles transitions between menu and gameplay, and persists player data.
+ *
+ * @component
+ * @returns {JSX.Element} The root application UI (menu or game)
  */
 const App: React.FC = () => {
   const [gameStarted, setGameStarted] = useState(false);
